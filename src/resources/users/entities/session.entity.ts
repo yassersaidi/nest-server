@@ -12,7 +12,7 @@ export class Session {
   @Column()
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE'})
   user: User;
 
   @CreateDateColumn()

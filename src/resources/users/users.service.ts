@@ -50,8 +50,23 @@ export class UsersService {
     return this.users.findOneBy({ email })
   }
 
+  findById(id: string){
+    return this.users.findOneBy({id})
+  }
+
+  async getMe(id: string){
+    return this.users.findOne({
+      where:{id},
+      select:["email","id","username",'profilePicture',"verified"]
+    })
+  }
+
   async getAll() {
-    const users = await this.users.find()
+    const users = await this.users.find(
+      {
+        select: ['id', 'email', 'username', 'createdAt', 'verified', 'profilePicture']
+      }
+    )
     return users;
   }
 

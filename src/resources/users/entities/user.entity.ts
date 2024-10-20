@@ -26,12 +26,12 @@ export class User {
     @Column({ default: '/uploads/profile/default_profile_picture.png' })
     profilePicture: string;
   
-    @OneToMany(() => Session, (session) => session.user)
+    @OneToMany(() => Session, (session) => session.user, { eager: true })
     sessions: Session[];
   
-    @OneToOne(() => VerificationCode, (code) => code.user)
+    @OneToOne(() => VerificationCode, (code) => code.user, { eager: true })
     verificationCode: VerificationCode;
   
-    @OneToOne(() => Admin, (admin) => admin.user)
+    @OneToOne(() => Admin, (admin) => admin.user, { eager: true } )
     admin?: Admin;
 }

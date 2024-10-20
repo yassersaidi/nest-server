@@ -12,13 +12,9 @@ import { UsersModule } from '../users/users.module';
   imports: [
     UsersModule,
     TypeOrmModule.forFeature([Session]),
-  JwtModule.registerAsync({
-    inject: [ConfigService],
-    useFactory: async (configService: ConfigService) => ({}),
-  }),
 
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService, JwtService],
 })
 export class AuthModule { }

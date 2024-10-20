@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { User } from '../users/entities/user.entity';
 import { loginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
@@ -6,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Session } from '../users/entities/session.entity';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { Request, Response } from 'express';
 
 const bcrypt = require('bcryptjs');
 
@@ -17,7 +18,7 @@ export class AuthService {
     private readonly configService: ConfigService
   ) { }
 
-  
+
   async login(user: User, loginDto: loginDto) {
 
     const isValid = await bcrypt.compare(loginDto.password, user?.password)
@@ -56,4 +57,30 @@ export class AuthService {
       userId: user.id
     }
   }
+
+  async logout(refreshToken: string, res: Response) {
+
+    const session = await this.session.findOne({ where: { refreshToken } });
+
+    if (!session) {
+      throw new UnauthorizedException('Session not found or already logged out');
+    }
+
+    await this.session.delete({ refreshToken });
+
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+    
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+
+    return { message: 'Logout successful' };
+  }
+
 }
