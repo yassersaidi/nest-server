@@ -7,11 +7,12 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
 import { UsersModule } from '../users/users.module';
+import { VerificationCode } from '../users/entities/verification.code.entity';
 
 @Module({
   imports: [
     UsersModule,
-    TypeOrmModule.forFeature([Session]),
+    TypeOrmModule.forFeature([Session, VerificationCode]),
 
   ],
   controllers: [AuthController],

@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:15-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/postgres_data
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -22,7 +22,22 @@ services:
       db:
         condition: service_healthy
     env_file:
-    - .env
+      - .env
+
+  nest-app:
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run start:prod
 
 volumes:
-  postgres_data:  
+  postgres_data:

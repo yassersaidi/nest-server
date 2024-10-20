@@ -5,6 +5,10 @@ import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { Response, Request } from 'express';
 import { IsAuthed } from 'src/guards/is.authed.gaurd';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { VerifyCodeDto } from './dto/verify-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forget-password.dto';
 
 
 @Controller('auth')
@@ -51,21 +55,127 @@ export class AuthController {
   @UseGuards(IsAuthed)
   @Get("/me")
   getMe(@Req() req) {
-    console.log(req)
     return this.userService.getMe(req.userId)
+  }
+  @UseGuards(IsAuthed)
+  @Delete("/me")
+  deleteMe(@Req() req, @Res() res: Response) {
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+    });
+
+    return this.userService.deleteUser(req.userId)
   }
 
   @UseGuards(IsAuthed)
   @Post('/logout')
   async logout(@Req() req: Request, @Res() res: Response) {
     const refreshToken = req.cookies["refreshToken"]
-    console.log(req.cookies)
-    if(!refreshToken){
+    if (!refreshToken) {
       throw new BadRequestException("No refresh token provided")
     }
     return this.authService.logout(refreshToken, res);
   }
 
+  @Post('/verify-email')
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    const { email } = verifyEmailDto
+    const user = await this.userService.findByEmail(email)
+    if (!user) {
+      throw new BadRequestException("No User found")
+    }
+    if (user.verified) {
+      return { message: "User already verfied" }
+    }
 
+    const { message } = await this.authService.verifyEmail(email, user.id)
+    return message
+  }
+
+  @Post('/verify-code')
+  async verifyCode(@Body() verifyCodeDto: VerifyCodeDto) {
+    const { email, code } = verifyCodeDto;
+
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new BadRequestException("Invalid credentials");
+    }
+
+    if (user.verified) {
+      return { message: "User already verified" };
+    }
+
+    const isVerified = await this.authService.verifyCode(user.id, code);
+    if (!isVerified) {
+      throw new BadRequestException("Invalid or expired verification code");
+    }
+
+    await this.userService.updateUser(user.id, { verified: true });
+
+    return { message: "User successfully verified" };
+  }
+
+  @Post('/forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.userService.findByEmail(email);
+
+    if (!user) {
+      throw new BadRequestException('Invalid credentials');
+    }
+
+    const {message} = await this.authService.forgotPassword(user.id, email);
+
+    if (!message) {
+      throw new BadRequestException('Failed to send the reset code. Please try again.');
+    }
+
+    return message
+  }
+
+  @Post('/reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    const { email, code, password } = resetPasswordDto;
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new BadRequestException('Invalid credentials');
+    }
+    const { hashedPassword } = await this.authService.resetPassword(user.id, email, code, password);
+    if (!hashedPassword) {
+      throw new BadRequestException('Invalid or expired reset code.');
+    }
+
+    await this.userService.updateUser(user.id, { password: hashedPassword });
+
+    return { message: 'Password successfully reset' };
+  }
+
+  @Post('/rt')
+  async refreshToken(@Req() req: Request, @Res() res: Response) {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken) {
+      throw new BadRequestException('Access denied, token missing!');
+    }
+
+    const {userId, accessToken} = await this.authService.refreshToken(refreshToken);
+    
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      secure: true,
+      sameSite: 'strict',
+    });
+
+    return res.json({ userId });
+  }
 
 }

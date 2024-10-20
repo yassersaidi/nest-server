@@ -70,4 +70,18 @@ export class UsersService {
     return users;
   }
 
+  async updateUser(userId: string, updateData: Partial<User>){
+    await this.users.update(userId, updateData);
+  }
+
+  async deleteUser(userId: string){
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    await this.users.delete(userId);
+    return { message: 'Logout successful' };
+  }
+
 }

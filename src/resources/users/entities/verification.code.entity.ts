@@ -15,6 +15,6 @@ export class VerificationCode {
   @Column()
   userId: string;
 
-  @ManyToOne(() => User, (user) => user.verificationCode)
+  @ManyToOne(() => User, (user) => user.verificationCode, {onDelete: 'CASCADE'})
   user: User;
 }

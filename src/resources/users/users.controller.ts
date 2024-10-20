@@ -21,7 +21,7 @@ export class UsersController {
 
   @UseGuards(IsAuthed, IsAdmin)
   @Get('/all')
-  getAllUsers(){
+  getAllUsers() {
     return this.usersService.getAll()
   }
 
