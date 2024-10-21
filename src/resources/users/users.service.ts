@@ -20,7 +20,6 @@ export class UsersService {
   async create(createUserDto: CreateUserDto) {
 
     const isEmailUsed = await this.findByEmail(createUserDto.email)
-    console.log(isEmailUsed)
     if (isEmailUsed) {
       throw new BadRequestException("this email is used by onther user")
     }
@@ -81,7 +80,7 @@ export class UsersService {
     }
 
     await this.users.delete(userId);
-    return { message: 'Logout successful' };
+    return { message: 'your account has been deleted' };
   }
 
 }

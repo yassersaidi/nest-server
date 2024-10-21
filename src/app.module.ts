@@ -4,11 +4,17 @@ import { AuthModule } from './resources/auth/auth.module';
 import { DatabaseModule } from './resources/database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtService } from '@nestjs/jwt';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [ConfigModule.forRoot({
     isGlobal: true
   }),
+  ThrottlerModule.forRoot([{
+    ttl: 60000,
+    limit: 10,
+  }]),
     UsersModule,
     AuthModule,
     DatabaseModule,
@@ -16,7 +22,11 @@ import { JwtModule, JwtService } from '@nestjs/jwt';
     inject: [ConfigService],
     useFactory: async (configService: ConfigService) => ({}),
   }),
-  
+
   ],
+  providers: [{
+    provide: APP_GUARD,
+    useClass: ThrottlerGuard
+  }]
 })
 export class AppModule { }

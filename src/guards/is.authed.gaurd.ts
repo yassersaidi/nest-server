@@ -1,8 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common"
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
-import { Observable } from "rxjs";
 import { UsersService } from "src/resources/users/users.service";
 
 @Injectable()
@@ -23,7 +22,6 @@ export class IsAuthed implements CanActivate {
         }
 
         try {
-            
             
             const {userId} = await this.tokenService.verifyAsync(
                 token,

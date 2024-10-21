@@ -15,8 +15,6 @@ export class IsAdmin implements CanActivate {
 
     const user = await this.userService.findById(userId);
 
-    console.log(user.admin)
-
     if (!user || !user.admin) {  
       throw new ForbiddenException('You must be an admin to access this resource');
     }

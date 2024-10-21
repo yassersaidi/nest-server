@@ -4,10 +4,9 @@ import { loginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Session } from '../users/entities/session.entity';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, LessThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
-import { Request, Response } from 'express';
-import { VerifyEmailDto } from './dto/verify-email.dto';
+import { Response } from 'express';
 import { VerificationCode } from '../users/entities/verification.code.entity';
 import { generateNumericCode } from 'src/utils/generateCode';
 import { sendVerificationCode } from 'src/utils/sendEmails';
@@ -58,6 +57,9 @@ export class AuthService {
     });
 
     await this.session.save(sessionData);
+
+    const now = new Date();
+    await this.session.delete({ expiresAt: LessThan(now) });
 
     return {
       accessToken,
@@ -119,6 +121,9 @@ export class AuthService {
     });
 
     await this.verificationCode.save(verificationCode);
+
+    const now = new Date();
+    await this.verificationCode.delete({ expiresAt: LessThan(now) });
 
     return { message: 'Verification code sent!' };
 
@@ -192,6 +197,9 @@ export class AuthService {
     });
 
     await this.verificationCode.save(verificationCode);
+
+    const now = new Date();
+    await this.verificationCode.delete({ expiresAt: LessThan(now) });
 
     return { message: 'Password reset code sent!' };
   }

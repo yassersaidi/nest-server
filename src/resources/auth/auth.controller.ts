@@ -9,7 +9,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forget-password.dto';
-
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -17,16 +17,19 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly userService: UsersService) { }
 
+  @Throttle({ default: { limit: 1, ttl: 300000 } })
   @Post("/register")
   createUser(@Body() CreateUserDto: CreateUserDto) {
     return this.userService.create(CreateUserDto);
   }
 
+  @Throttle({ default: { limit: 2, ttl: 60000 } })
   @Post("/login")
   async login(
     @Body() loginDto: loginDto,
     @Res({ passthrough: true }) res: Response
   ) {
+    
     const user = await this.userService.findByEmail(loginDto.email)
     if (!user) {
       throw new NotFoundException("No user found")
@@ -57,9 +60,12 @@ export class AuthController {
   getMe(@Req() req) {
     return this.userService.getMe(req.userId)
   }
+
   @UseGuards(IsAuthed)
   @Delete("/me")
-  deleteMe(@Req() req, @Res() res: Response) {
+  async deleteMe(@Req() req, @Res() res: Response) {
+    const { message } = await this.userService.deleteUser(req.userId)
+
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: true,
@@ -72,7 +78,7 @@ export class AuthController {
       sameSite: 'strict',
     });
 
-    return this.userService.deleteUser(req.userId)
+    return message
   }
 
   @UseGuards(IsAuthed)
@@ -133,7 +139,7 @@ export class AuthController {
       throw new BadRequestException('Invalid credentials');
     }
 
-    const {message} = await this.authService.forgotPassword(user.id, email);
+    const { message } = await this.authService.forgotPassword(user.id, email);
 
     if (!message) {
       throw new BadRequestException('Failed to send the reset code. Please try again.');
@@ -166,8 +172,8 @@ export class AuthController {
       throw new BadRequestException('Access denied, token missing!');
     }
 
-    const {userId, accessToken} = await this.authService.refreshToken(refreshToken);
-    
+    const { userId, accessToken } = await this.authService.refreshToken(refreshToken);
+
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,

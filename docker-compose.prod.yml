@@ -27,7 +27,7 @@ services:
   nest-app:
     build:
       context: .
-      target: development 
+      target: production 
     ports:
       - "3000:3000"
     depends_on:
@@ -38,7 +38,7 @@ services:
     volumes:
       - .:/app  
       - /app/node_modules 
-    command: npm run start:dev
+    command: npm run start:prod
 
 volumes:
   postgres_data:
