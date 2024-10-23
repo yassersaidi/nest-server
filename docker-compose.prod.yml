@@ -1,8 +1,9 @@
 services:
   db:
+    container_name: prod_db
     image: postgres:15-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - prod_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -15,6 +16,7 @@ services:
       - .env
 
   pgadmin:
+    container_name: prod_pgadmin
     image: dpage/pgadmin4
     ports:
       - "5050:80"
@@ -22,9 +24,10 @@ services:
       db:
         condition: service_healthy
     env_file:
-      - .env
+       - .env
 
-  nest-app:
+  app:
+    container_name: prod_app
     build:
       context: .
       target: production 
@@ -38,7 +41,7 @@ services:
     volumes:
       - .:/app  
       - /app/node_modules 
-    command: npm run start:prod
+    command: /bin/sh -c "npm run migration:run && npm run start:prod"
 
 volumes:
-  postgres_data:
+  prod_data:
