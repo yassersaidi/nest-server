@@ -17,7 +17,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly userService: UsersService) { }
 
-  @Throttle({ default: { limit: 1, ttl: 300000 } })
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
   @Post("/register")
   createUser(@Body() CreateUserDto: CreateUserDto) {
     return this.userService.create(CreateUserDto);

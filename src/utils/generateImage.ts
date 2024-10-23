@@ -22,7 +22,7 @@ export default async function generateInitialsImage(username: string) {
         maxWidth:100
     })
 
-    const profileDir = path.join(__dirname, '../public/uploads/profile');
+    const profileDir = path.join(__dirname,'..','..', process.env.PROFILE_PICTURE_DIR);
     if (!fs.existsSync(profileDir)) {
       fs.mkdirSync(profileDir, { recursive: true });
     }

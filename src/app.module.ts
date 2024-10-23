@@ -6,6 +6,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -15,6 +17,10 @@ import { APP_GUARD } from '@nestjs/core';
     ttl: 60000,
     limit: 10,
   }]),
+  ServeStaticModule.forRoot({
+    rootPath: join(__dirname, '..', process.env.PROFILE_PICTURE_DIR),
+    serveRoot:'/uploads/profile/'
+  }),
     UsersModule,
     AuthModule,
     DatabaseModule,
