@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import generateInitialsImage from 'src/utils/generateImage';
+import { SearchUsersQueryDto } from './dto/search-users.dto';
 
 const bcrypt = require('bcryptjs');
 
@@ -34,7 +35,7 @@ export class UsersService {
 
     const user = await this.users.create({
       ...createUserDto,
-      password:hashedPassword,
+      password: hashedPassword,
       profilePicture
     })
     await this.users.save(user)
@@ -49,31 +50,44 @@ export class UsersService {
     return this.users.findOneBy({ email })
   }
 
-  findById(id: string){
-    return this.users.findOneBy({id})
+  findById(id: string) {
+    return this.users.findOneBy({ id })
   }
 
-  async getMe(id: string){
-    return this.users.findOne({
-      where:{id},
-      select:["email","id","username",'profilePicture',"verified"]
-    })
+  async getMe(id: string) {
+    const user = await this.users.createQueryBuilder('user')
+      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture', 'user.verified'])
+      .where('user.id = :id', { id })
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundException(`User not found`);
+    }
+
+    return user;
   }
 
   async getAll() {
-    const users = await this.users.find(
-      {
-        select: ['id', 'email', 'username', 'createdAt', 'verified', 'profilePicture']
-      }
-    )
+    const query = this.users.createQueryBuilder('user')
+      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture', 'user.verified', 'user.createdAt'])
+    const users = await query.getMany();
     return users;
   }
 
-  async updateUser(userId: string, updateData: Partial<User>){
+  async searchUsers({ email, username }: SearchUsersQueryDto) {
+    const query = this.users.createQueryBuilder('user')
+      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture'])
+      .where('user.email = :email OR user.username = :username', { email, username });
+
+    const users = await query.getMany();
+    return users
+  }
+
+  async updateUser(userId: string, updateData: Partial<User>) {
     await this.users.update(userId, updateData);
   }
 
-  async deleteUser(userId: string){
+  async deleteUser(userId: string) {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) {
       throw new Error('User not found');
@@ -82,5 +96,6 @@ export class UsersService {
     await this.users.delete(userId);
     return { message: 'your account has been deleted' };
   }
+
 
 }
