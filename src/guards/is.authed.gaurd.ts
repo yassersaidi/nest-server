@@ -34,6 +34,7 @@ export class IsAuthed implements CanActivate {
                 throw new UnauthorizedException()
             }
             request.userId = userId
+            request.username = user.username
         }
         catch (error) {
             throw new UnauthorizedException(error)

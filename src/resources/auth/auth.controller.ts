@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Res, NotFoundException, UseGuards, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Res, NotFoundException, UseGuards, Req, BadRequestException, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { loginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
@@ -10,6 +10,8 @@ import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forget-password.dto';
 import { Throttle } from '@nestjs/throttler';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
 
 @Controller('auth')
 export class AuthController {
@@ -29,7 +31,7 @@ export class AuthController {
     @Body() loginDto: loginDto,
     @Res({ passthrough: true }) res: Response
   ) {
-    
+
     const user = await this.userService.findByEmail(loginDto.email)
     if (!user) {
       throw new NotFoundException("No user found")
@@ -57,8 +59,33 @@ export class AuthController {
 
   @UseGuards(IsAuthed)
   @Get("/me")
-  getMe(@Req() req) {
+  getMe(@Req() req: Request) {
     return this.userService.getMe(req.userId)
+  }
+
+  @UseGuards(IsAuthed)
+  @Patch("/uploads/profile")
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: "static/uploads/profile",
+      filename: (req, file, cb) => {
+        const { username } = req
+        const ext = file.mimetype.split("/")[1]
+        console.log(file)
+        const filename = `${username}_profile.${ext}`;
+        cb(null, filename);
+      },
+    }), 
+  }))
+  updateProfilePicture(@UploadedFile(
+    new ParseFilePipe({
+      validators: [
+        new MaxFileSizeValidator({ maxSize: 1000000, message: "Picture should be less then 1mb." }),
+        new FileTypeValidator({ fileType: /^(image\/jpeg|image\/png)$/ }),
+      ],
+    }),) file: Express.Multer.File) {
+
+    return { message: 'Profile picture uploaded successfully', path: file.path.replace("static","")};
   }
 
   @UseGuards(IsAuthed)
