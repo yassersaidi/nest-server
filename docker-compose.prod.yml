@@ -37,10 +37,8 @@ services:
       db:
         condition: service_healthy
     env_file:
-      - .env
-    volumes:
-      - .:/app         
-    command: /bin/sh -c "npm run migration:run && npm run start:prod"
+      - .env      
+    command: /bin/sh -c "npm run typeorm migration:run -- -d dist/config/database.js && npm run start:prod"
 
 volumes:
   prod_data:
