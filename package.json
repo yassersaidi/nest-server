@@ -38,7 +38,6 @@
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.5",
-    "jimp": "^1.6.0",
     "pg": "^8.13.0",
     "reflect-metadata": "^0.2.0",
     "resend": "^4.0.0",

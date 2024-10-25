@@ -4,7 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { ConfigService } from '@nestjs/config';
-import generateInitialsImage from 'src/utils/generateImage';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
 
 const bcrypt = require('bcryptjs');
@@ -27,16 +26,14 @@ export class UsersService {
 
     const isUsernameUsed = await this.findByUsername(createUserDto.username)
     if (isUsernameUsed) {
-      throw new BadRequestException("this username is used by onther user")
+      throw new BadRequestException("this username is used by another user")
     }
 
-    const profilePicture = await generateInitialsImage(createUserDto.username);
     const hashedPassword = await bcrypt.hash(createUserDto.password, parseInt(this.configService.get("PASSWORD_SALT")))
 
     const user = await this.users.create({
       ...createUserDto,
       password: hashedPassword,
-      profilePicture
     })
     await this.users.save(user)
     return user.id
