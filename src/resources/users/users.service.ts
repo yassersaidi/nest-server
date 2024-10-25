@@ -21,7 +21,7 @@ export class UsersService {
 
     const isEmailUsed = await this.findByEmail(createUserDto.email)
     if (isEmailUsed) {
-      throw new BadRequestException("this email is used by onther user")
+      throw new BadRequestException("this email is used by another user")
     }
 
     const isUsernameUsed = await this.findByUsername(createUserDto.username)
