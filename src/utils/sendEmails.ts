@@ -1,6 +1,12 @@
 import { Resend } from "resend";
-export const sendVerificationCode = async (key, email: string, code: string, subject:string, header:string) => {
-    const resend = new Resend(key);
+
+import { config } from 'dotenv';
+config();
+
+console.log(process.env.RESEND_API_KEY)
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+export const sendVerificationCode = async (email: string, code: string, subject: string, header: string) => {
 
     const { data, error } = await resend.emails.send({
         from: "NEST-SERVER <notification@yassersaidi.com>",

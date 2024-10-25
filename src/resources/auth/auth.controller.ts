@@ -126,7 +126,7 @@ export class AuthController {
       throw new BadRequestException("No User found")
     }
     if (user.verified) {
-      return { message: "User already verfied" }
+      return { message: "User already verified" }
     }
 
     const { message } = await this.authService.verifyEmail(email, user.id)

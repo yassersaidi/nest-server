@@ -108,7 +108,7 @@ export class AuthService {
     }
     const code = generateNumericCode(6);
 
-    const isSent = await sendVerificationCode(this.configService.get("RESEND_API_KEY"), email, code, "Your email verification code", "Use this code to confirm your email");
+    const isSent = await sendVerificationCode(email, code, "Your email verification code", "Use this code to confirm your email");
 
     if (!isSent) {
       throw new BadRequestException("Can't send the verification code, try again!");
@@ -185,7 +185,7 @@ export class AuthService {
 
     const resetCode = generateNumericCode(6);
 
-    const isSent = await sendVerificationCode(this.configService.get("RESEND_API_KEY"), email, resetCode, "Your password verification code", "Use this code to reset your password");
+    const isSent = await sendVerificationCode( email, resetCode, "Your password verification code", "Use this code to reset your password");
     if (!isSent) {
       throw new BadRequestException('Failed to send the reset code. Please try again.');
     }
