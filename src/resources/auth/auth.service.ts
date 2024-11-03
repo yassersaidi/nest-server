@@ -11,18 +11,20 @@ import { VerificationCode } from '../users/entities/verification.code.entity';
 import { generateNumericCode } from 'src/utils/generateCode';
 import { sendVerificationCode } from 'src/utils/sendEmails';
 import { UsersService } from '../users/users.service';
+import { Admin } from '../users/entities/admin.entity';
 
 const bcrypt = require('bcryptjs');
 
 @Injectable()
 export class AuthService {
   constructor(
+    @InjectRepository(Admin) private readonly admin: Repository<Admin>,
     @InjectRepository(Session) private readonly session: Repository<Session>,
     @InjectRepository(VerificationCode) private readonly verificationCode: Repository<VerificationCode>,
     private readonly tokenService: JwtService,
     private readonly configService: ConfigService,
     private readonly userService: UsersService,
-    
+
   ) { }
 
 
@@ -51,7 +53,7 @@ export class AuthService {
     );
 
     const sessionData = this.session.create({
-      userId: user.id,
+      user,
       refreshToken,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
@@ -94,11 +96,11 @@ export class AuthService {
   }
 
 
-  async verifyEmail(email: string, userId: string) {
+  async verifyEmail(email: string, user: User) {
 
     const existingCode = await this.verificationCode.findOne({
       where: {
-        userId: userId,
+        user: { id: user.id },
         expiresAt: MoreThan(new Date()),
       },
     });
@@ -115,7 +117,7 @@ export class AuthService {
     }
 
     const verificationCode = this.verificationCode.create({
-      userId: userId,
+      user,
       code,
       expiresAt: new Date(Date.now() + 15 * 60 * 1000)
     });
@@ -129,11 +131,11 @@ export class AuthService {
 
   }
 
-  async verifyCode(userId: string, code: string) {
+  async verifyCode(user: User, code: string) {
 
     const userVerificationCode = await this.verificationCode.findOne({
       where: {
-        userId: userId,
+        user: { id: user.id },
         code: code,
         expiresAt: MoreThan(new Date()),
       },
@@ -148,11 +150,11 @@ export class AuthService {
     return true;
   }
 
-  async resetPassword(userId: string, email: string, code: string, newPassword: string) {
+  async resetPassword(user: User, email: string, code: string, newPassword: string) {
 
     const resetCode = await this.verificationCode.findOne({
       where: {
-        userId: userId,
+        user: { id: user.id },
         code: code,
         expiresAt: MoreThan(new Date()),
       },
@@ -170,11 +172,11 @@ export class AuthService {
   }
 
 
-  async forgotPassword(userId: string, email: string) {
+  async forgotPassword(user: User, email: string) {
 
     const existingResetCode = await this.verificationCode.findOne({
       where: {
-        userId: userId,
+        user: { id: user.id },
         expiresAt: MoreThan(new Date()),
       },
     });
@@ -185,13 +187,13 @@ export class AuthService {
 
     const resetCode = generateNumericCode(6);
 
-    const isSent = await sendVerificationCode( email, resetCode, "Your password verification code", "Use this code to reset your password");
+    const isSent = await sendVerificationCode(email, resetCode, "Your password verification code", "Use this code to reset your password");
     if (!isSent) {
       throw new BadRequestException('Failed to send the reset code. Please try again.');
     }
 
     const verificationCode = this.verificationCode.create({
-      userId,
+      user,
       code: resetCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000)
     });
@@ -222,10 +224,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    
+
     const user = await this.userService.findById(userId)
 
-    if(!user){
+    if (!user) {
       throw new BadRequestException('Invalid refresh token');
     }
 
@@ -242,6 +244,20 @@ export class AuthService {
       userId: user.id
     }
 
+  }
+
+  async addAdmin(user: User) {
+
+    const isAdmin = await this.admin.findOneBy({ email: user.email })
+    if (isAdmin) {
+      throw new BadRequestException("This user is already an admin")
+    }
+    const admin = this.admin.create({
+      user,
+      email: user.email
+    })  
+
+    await this.admin.save(admin)
   }
 
 }

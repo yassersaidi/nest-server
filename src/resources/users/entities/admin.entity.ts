@@ -9,10 +9,7 @@ export class Admin {
   @Column({ unique: true })
   email: string;
 
-  @Column({ unique: true })
-  userId: string;
-
-  @OneToOne(() => User, (user) => user.admin, { onDelete: 'CASCADE' })
+  @OneToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
   user: User;
 

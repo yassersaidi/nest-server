@@ -3,12 +3,12 @@ import {
   Get, Query, UseGuards
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { IsAuthed } from 'src/guards/is.authed.gaurd';
-import { IsAdmin } from 'src/guards/is.admin.gaurd';
+import { IsAuthed } from '@/guards/is.authed.guard';
+import { IsAdmin } from '@/guards/is.admin.guard';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
 
 @Controller('users')
-export class UsersController {
+export class UsersController {  
   constructor(private readonly usersService: UsersService) { }
 
   @UseGuards(IsAuthed, IsAdmin)

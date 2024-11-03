@@ -24,7 +24,7 @@ import { join } from 'path';
     UsersModule,
     AuthModule,
     DatabaseModule,
-  JwtModule.registerAsync({
+    JwtModule.registerAsync({
     inject: [ConfigService],
     useFactory: async (configService: ConfigService) => ({}),
   }),

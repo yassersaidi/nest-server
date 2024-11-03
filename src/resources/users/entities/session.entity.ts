@@ -9,10 +9,7 @@ export class Session {
   @Column({ unique: true })
   refreshToken: string;
 
-  @Column()
-  userId: string;
-
-  @ManyToOne(() => User, (user) => user.sessions, { onDelete: 'CASCADE'})
+  @ManyToOne(() => User, { onDelete: 'CASCADE'})
   user: User;
 
   @CreateDateColumn()

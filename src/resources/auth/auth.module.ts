@@ -6,12 +6,12 @@ import { Session } from '../users/entities/session.entity';
 import { JwtService } from '@nestjs/jwt';
 import { UsersModule } from '../users/users.module';
 import { VerificationCode } from '../users/entities/verification.code.entity';
+import { Admin } from '../users/entities/admin.entity';
 
 @Module({
   imports: [
     UsersModule,
-    TypeOrmModule.forFeature([Session, VerificationCode]),
-
+    TypeOrmModule.forFeature([Session, VerificationCode, Admin]),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtService],

@@ -4,7 +4,7 @@ import { loginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { Response, Request } from 'express';
-import { IsAuthed } from 'src/guards/is.authed.gaurd';
+import { IsAuthed } from '@/guards/is.authed.guard';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -43,14 +43,14 @@ export class AuthController {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
     });
 
     return { message: 'Login successful', userId };
@@ -129,7 +129,7 @@ export class AuthController {
       return { message: "User already verified" }
     }
 
-    const { message } = await this.authService.verifyEmail(email, user.id)
+    const { message } = await this.authService.verifyEmail(email, user)
     return message
   }
 
@@ -146,7 +146,7 @@ export class AuthController {
       return { message: "User already verified" };
     }
 
-    const isVerified = await this.authService.verifyCode(user.id, code);
+    const isVerified = await this.authService.verifyCode(user, code);
     if (!isVerified) {
       throw new BadRequestException("Invalid or expired verification code");
     }
@@ -166,7 +166,7 @@ export class AuthController {
       throw new BadRequestException('Invalid credentials');
     }
 
-    const { message } = await this.authService.forgotPassword(user.id, email);
+    const { message } = await this.authService.forgotPassword(user, email);
 
     if (!message) {
       throw new BadRequestException('Failed to send the reset code. Please try again.');
@@ -182,7 +182,7 @@ export class AuthController {
     if (!user) {
       throw new BadRequestException('Invalid credentials');
     }
-    const { hashedPassword } = await this.authService.resetPassword(user.id, email, code, password);
+    const { hashedPassword } = await this.authService.resetPassword(user, email, code, password);
     if (!hashedPassword) {
       throw new BadRequestException('Invalid or expired reset code.');
     }
@@ -205,10 +205,22 @@ export class AuthController {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
     });
 
     return res.json({ userId });
+  }
+
+  @Post('/admin')
+  async addAmin(@Body() verifyEmailDto: VerifyEmailDto) {
+    const {email} = verifyEmailDto
+    const user = await this.userService.findByEmail(email)
+
+    if(!user){
+      throw new BadRequestException("Invalid credentials")
+    }
+
+    return this.authService.addAdmin(user)
   }
 
 }
