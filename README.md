@@ -17,7 +17,7 @@ This project is a web application built with Nest.js, TypeORM, PostgreSQL, and D
    ```
 3. **Run migrations**:
     ```bash
-    npm run migrations:run
+    npm run migrate
     ```
 ### Production Setup
 
