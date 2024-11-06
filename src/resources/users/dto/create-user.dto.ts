@@ -16,4 +16,10 @@ export class CreateUserDto {
     @MinLength(6)
     username: string
 
+
+    @IsNotEmpty()
+    @IsString()
+    @MinLength(10)
+    phoneNumber: string
+
 }

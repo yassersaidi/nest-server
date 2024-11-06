@@ -1,40 +1,42 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
-import { UsersService } from "src/resources/users/users.service";
+import UAParser from "ua-parser-js";
 
 @Injectable()
 export class IsAuthed implements CanActivate {
     constructor(
-        private readonly userService: UsersService,
+        @Inject('UAParser') private readonly uap: UAParser,
         private readonly tokenService: JwtService,
         private readonly configService: ConfigService
     ) { }
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
 
-        const request = context.switchToHttp().getRequest()
+        const request: Request = context.switchToHttp().getRequest()
         const token = this.extractTokenFromHeader(request)
-
+       
         if (!token) {
             throw new UnauthorizedException()
         }
 
         try {
-            
-            const {userId} = await this.tokenService.verifyAsync(
+            const { userId, username, role } = await this.tokenService.verifyAsync(
                 token,
                 {
                     secret: this.configService.get("JWT_SECRET")
                 }
             )
-            const user = await this.userService.findById(userId)
-            if (!user) {
+
+            if (!userId) {
                 throw new UnauthorizedException()
             }
+
             request.userId = userId
-            request.username = user.username
+            request.username = username
+            request.role = role
+
         }
         catch (error) {
             throw new UnauthorizedException(error)
@@ -47,4 +49,6 @@ export class IsAuthed implements CanActivate {
         const [type, token] = request.headers.authorization?.split(' ') ?? [];
         return type === 'Bearer' ? token : undefined;
     }
+
+
 }

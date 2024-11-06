@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Delete, Res, NotFoundException, UseGuards, Req, BadRequestException, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Res, UseGuards, Req, BadRequestException, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { loginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
@@ -9,35 +9,40 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forget-password.dto';
-import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import { VerifyPhoneNumberDto } from './dto/verify-phone-number.dto';
+import { VerifyPhoneNumberCodeDto } from './dto/verify-phone-number-code.dto';
+import { UserReq, UserReqType } from '@/decorators/user.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly userService: UsersService) { }
+  @UseGuards(IsAuthed)
+  @Get("/hello")
+  getHello() {
+    return "Hello"
+  }
 
-  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  // @Throttle({ default: { limit: 5, ttl: 300000 } })
   @Post("/register")
   createUser(@Body() CreateUserDto: CreateUserDto) {
     return this.userService.create(CreateUserDto);
   }
 
-  @Throttle({ default: { limit: 2, ttl: 60000 } })
+  // @Throttle({ default: { limit: 2, ttl: 60000 } })
   @Post("/login")
   async login(
+    @Req() req: Request,
     @Body() loginDto: loginDto,
     @Res({ passthrough: true }) res: Response
   ) {
 
-    const user = await this.userService.findByEmail(loginDto.email)
-    if (!user) {
-      throw new NotFoundException("No user found")
-    }
-
-    const { accessToken, refreshToken, userId } = await this.authService.login(user, loginDto);
+    const user = await this.userService.findUser(loginDto.email)
+    const { ipAddress, deviceInfo } = await this.authService.getUserDeviceInfo(req)
+    const { accessToken, refreshToken, userId } = await this.authService.login(user, loginDto, ipAddress, deviceInfo);
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
@@ -75,7 +80,7 @@ export class AuthController {
         const filename = `${username}_profile.${ext}`;
         cb(null, filename);
       },
-    }), 
+    }),
   }))
   updateProfilePicture(@UploadedFile(
     new ParseFilePipe({
@@ -85,13 +90,13 @@ export class AuthController {
       ],
     }),) file: Express.Multer.File) {
 
-    return { message: 'Profile picture uploaded successfully', path: file.path.replace("static","")};
+    return { message: 'Profile picture uploaded successfully', path: file.path.replace("static", "") };
   }
 
   @UseGuards(IsAuthed)
   @Delete("/me")
-  async deleteMe(@Req() req, @Res() res: Response) {
-    const { message } = await this.userService.deleteUser(req.userId)
+  async deleteMe(@UserReq() user:UserReqType, @Res() res: Response) {
+    const { message } = await this.userService.deleteUser(user.userId)
 
     res.clearCookie('accessToken', {
       httpOnly: true,
@@ -119,13 +124,10 @@ export class AuthController {
   }
 
   @Post('/verify-email')
-  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+  async sendVerificationCodeEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     const { email } = verifyEmailDto
-    const user = await this.userService.findByEmail(email)
-    if (!user) {
-      throw new BadRequestException("No User found")
-    }
-    if (user.verified) {
+    const user = await this.userService.findUser(email)
+    if (user.isEmailVerified) {
       return { message: "User already verified" }
     }
 
@@ -133,25 +135,54 @@ export class AuthController {
     return message
   }
 
-  @Post('/verify-code')
-  async verifyCode(@Body() verifyCodeDto: VerifyCodeDto) {
+  @Post('/verify-email-code')
+  async verifyEmailCode(@Body() verifyCodeDto: VerifyCodeDto) {
     const { email, code } = verifyCodeDto;
 
-    const user = await this.userService.findByEmail(email);
-    if (!user) {
-      throw new BadRequestException("Invalid credentials");
-    }
+    const user = await this.userService.findUser(email);
 
-    if (user.verified) {
+    if (user.isEmailVerified) {
       return { message: "User already verified" };
     }
 
-    const isVerified = await this.authService.verifyCode(user, code);
-    if (!isVerified) {
+    const isValid = await this.authService.verifyEmailCode(user, code);
+    if (!isValid) {
       throw new BadRequestException("Invalid or expired verification code");
     }
 
-    await this.userService.updateUser(user.id, { verified: true });
+    await this.userService.updateUser(user.id, { isEmailVerified: true });
+
+    return { message: "User successfully verified" };
+  }
+
+  @Post('/verify-phone-number')
+  async sendVerificationCodePhone(@Body() verifyPhoneNumberDto: VerifyPhoneNumberDto) {
+    const { phoneNumber, email } = verifyPhoneNumberDto
+    const user = await this.userService.findUser(email)
+    if (user.isPhoneNumberVerified) {
+      return { message: "User already verified" }
+    }
+
+    const { message } = await this.authService.verifyPhoneNumber(phoneNumber, user)
+    return message
+  }
+
+  @Post('/verify-phone-code')
+  async verifyPhoneNumberCode(@Body() verifyPhoneNumberCodeDto: VerifyPhoneNumberCodeDto) {
+    const { email, phoneNumber, code } = verifyPhoneNumberCodeDto;
+
+    const user = await this.userService.findUser(email);
+
+    if (user.isPhoneNumberVerified) {
+      return { message: "User already verified" };
+    }
+
+    const isValid = await this.authService.verifyPhoneNumberCode(user, code)
+    if (!isValid) {
+      throw new BadRequestException("Invalid or expired verification code");
+    }
+
+    await this.userService.updateUser(user.id, { isPhoneNumberVerified: true });
 
     return { message: "User successfully verified" };
   }
@@ -160,11 +191,7 @@ export class AuthController {
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     const { email } = forgotPasswordDto;
 
-    const user = await this.userService.findByEmail(email);
-
-    if (!user) {
-      throw new BadRequestException('Invalid credentials');
-    }
+    const user = await this.userService.findUser(email);
 
     const { message } = await this.authService.forgotPassword(user, email);
 
@@ -178,10 +205,7 @@ export class AuthController {
   @Post('/reset-password')
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     const { email, code, password } = resetPasswordDto;
-    const user = await this.userService.findByEmail(email);
-    if (!user) {
-      throw new BadRequestException('Invalid credentials');
-    }
+    const user = await this.userService.findUser(email);
     const { hashedPassword } = await this.authService.resetPassword(user, email, code, password);
     if (!hashedPassword) {
       throw new BadRequestException('Invalid or expired reset code.');
@@ -213,13 +237,8 @@ export class AuthController {
 
   @Post('/admin')
   async addAmin(@Body() verifyEmailDto: VerifyEmailDto) {
-    const {email} = verifyEmailDto
-    const user = await this.userService.findByEmail(email)
-
-    if(!user){
-      throw new BadRequestException("Invalid credentials")
-    }
-
+    const { email } = verifyEmailDto
+    const user = await this.userService.findUser(email)
     return this.authService.addAdmin(user)
   }
 

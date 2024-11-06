@@ -8,12 +8,14 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import UAParser from 'ua-parser-js';
+import { CommonModule } from './resources/common/common.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
     isGlobal: true
   }),
-  ThrottlerModule.forRoot([{  
+  ThrottlerModule.forRoot([{
     ttl: 60000,
     limit: 10,
   }]),
@@ -21,18 +23,21 @@ import { join } from 'path';
     rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
     serveRoot: '/uploads/profile/'
   }),
+    CommonModule,
     UsersModule,
     AuthModule,
     DatabaseModule,
-    JwtModule.registerAsync({
+  JwtModule.registerAsync({
     inject: [ConfigService],
     useFactory: async (configService: ConfigService) => ({}),
   }),
 
   ],
-  providers: [{
-    provide: APP_GUARD,
-    useClass: ThrottlerGuard
-  }]
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard
+    }
+  ]
 })
 export class AppModule { }

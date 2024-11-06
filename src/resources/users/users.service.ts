@@ -1,96 +1,135 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
+import { DrizzleAsyncProvider } from '../database/database.module';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import * as db_schema from '@/resources/database/schema';
+import { eq, or } from 'drizzle-orm';
 
+type UserType = typeof db_schema.User.$inferSelect
 const bcrypt = require('bcryptjs');
 
 @Injectable()
 export class UsersService {
 
   constructor(
-    @InjectRepository(User) private readonly users: Repository<User>,
+    @Inject(DrizzleAsyncProvider) private db: NodePgDatabase<typeof db_schema>,
     private readonly configService: ConfigService
 
   ) { }
 
   async create(createUserDto: CreateUserDto) {
 
-    const isEmailUsed = await this.findByEmail(createUserDto.email)
-    if (isEmailUsed) {
-      throw new BadRequestException("this email is used by another user")
-    }
+    const users = await this.db.select().from(db_schema.User).where(or(eq(db_schema.User.email, createUserDto.email), eq(db_schema.User.username, createUserDto.username))).limit(1)
 
-    const isUsernameUsed = await this.findByUsername(createUserDto.username)
-    if (isUsernameUsed) {
-      throw new BadRequestException("this username is used by another user")
+    if (users.length > 0) {
+      throw new NotFoundException("User with email/username is already exist")
     }
 
     const hashedPassword = await bcrypt.hash(createUserDto.password, parseInt(this.configService.get("PASSWORD_SALT")))
 
-    const user = await this.users.create({
+    const userValues: typeof db_schema.User.$inferInsert = {
       ...createUserDto,
-      password: hashedPassword,
-    })
-    await this.users.save(user)
-    return user.id
+      password: hashedPassword
+    }
+
+    const user = await this.db.insert(db_schema.User).values(userValues)
+    return user
   }
 
-  findByUsername(username: string) {
-    return this.users.findOneBy({ username })
+
+  async findUser(email?: string, username?: string) {
+    const users = await this.db.select().from(db_schema.User).where(or(eq(db_schema.User.email, email), eq(db_schema.User.username, username))).limit(1)
+
+    if (users.length === 0) {
+      throw new NotFoundException("User not found")
+    }
+
+    return users[0]
   }
 
-  findByEmail(email: string) {
-    return this.users.findOneBy({ email })
-  }
+  async findById(id: string) {
 
-  findById(id: string) {
-    return this.users.findOneBy({ id })
+    const users = await this.db.select().from(db_schema.User).where(eq(db_schema.User.id, id)).limit(1)
+    if (users.length === 0) {
+      throw new NotFoundException("User not found")
+    }
+
+    return users[0]
   }
 
   async getMe(id: string) {
-    const user = await this.users.createQueryBuilder('user')
-      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture', 'user.verified'])
-      .where('user.id = :id', { id })
-      .getOne();
+    const user = await this.db
+      .select({
+        id: db_schema.User.id,
+        email: db_schema.User.email,
+        phoneNumber: db_schema.User.phoneNumber,
+        username: db_schema.User.username,
+        profilePicture: db_schema.User.profilePicture,
+        emailVerified: db_schema.User.isEmailVerified,
+        phoneNumberVerified: db_schema.User.isPhoneNumberVerified
+      })
+      .from(db_schema.User)
+      .where(eq(db_schema.User.id, id))
+      .limit(1)
+      .execute();
 
-    if (!user) {
+    if (user.length === 0) {
       throw new NotFoundException(`User not found`);
     }
 
-    return user;
+    return user[0];
   }
 
   async getAll() {
-    const query = this.users.createQueryBuilder('user')
-      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture', 'user.verified', 'user.createdAt'])
-    const users = await query.getMany();
+    const users = await this.db
+      .select({
+        id: db_schema.User.id,
+        email: db_schema.User.email,
+        phoneNumber: db_schema.User.phoneNumber,
+        username: db_schema.User.username,
+        profilePicture: db_schema.User.profilePicture,
+        emailVerified: db_schema.User.isEmailVerified,
+        phoneNumberVerified: db_schema.User.isPhoneNumberVerified
+      })
+      .from(db_schema.User)
     return users;
   }
 
   async searchUsers({ email, username }: SearchUsersQueryDto) {
-    const query = this.users.createQueryBuilder('user')
-      .select(['user.id', 'user.email', 'user.username', 'user.profilePicture'])
-      .where('user.email = :email OR user.username = :username', { email, username });
-
-    const users = await query.getMany();
+    const users = await this.db
+      .select({
+        id: db_schema.User.id,
+        email: db_schema.User.email,
+        phoneNumber: db_schema.User.phoneNumber,
+        username: db_schema.User.username,
+        profilePicture: db_schema.User.profilePicture,
+        emailVerified: db_schema.User.isEmailVerified,
+        phoneNumberVerified: db_schema.User.isPhoneNumberVerified
+      })
+      .from(db_schema.User)
+      .where(or(eq(db_schema.User.email, email), eq(db_schema.User.username, username)))
     return users
   }
 
-  async updateUser(userId: string, updateData: Partial<User>) {
-    await this.users.update(userId, updateData);
+  async updateUser(userId: string, updateData: Partial<UserType>) {
+    const updatedUsers = await this.db.update(db_schema.User).set(updateData).where(eq(db_schema.User.id, userId)).returning();
+
+    if (updatedUsers.length === 0) {
+      throw new NotFoundException("User not found");
+    }
+
+    return updatedUsers[0]
   }
 
   async deleteUser(userId: string) {
-    const user = await this.users.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new Error('User not found');
+    const deletedUsers = await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId)).returning();
+
+    if (deletedUsers.length === 0) {
+      throw new NotFoundException("User not found");
     }
 
-    await this.users.delete(userId);
     return { message: 'your account has been deleted' };
   }
 
