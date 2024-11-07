@@ -8,8 +8,10 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import UAParser from 'ua-parser-js';
 import { CommonModule } from './resources/common/common.module';
+import { CacheModule, CacheStore } from '@nestjs/cache-manager';
+import Keyv from 'keyv';
+import KeyvRedis from '@keyv/redis';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -17,7 +19,7 @@ import { CommonModule } from './resources/common/common.module';
   }),
   ThrottlerModule.forRoot([{
     ttl: 60000,
-    limit: 10,
+    limit: 100,
   }]),
   ServeStaticModule.forRoot({
     rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
@@ -27,6 +29,20 @@ import { CommonModule } from './resources/common/common.module';
     UsersModule,
     AuthModule,
     DatabaseModule,
+  CacheModule.registerAsync({
+    isGlobal: true,
+    inject: [ConfigService],
+    useFactory: async (configService: ConfigService) => {
+      const redisUri = configService.get<string>("REDIS_URI")
+      const store = new Keyv({
+        store: new KeyvRedis(redisUri)
+      })
+      return {
+        store: store as unknown as CacheStore,
+        ttl:20000
+      }   
+    }
+  }),
   JwtModule.registerAsync({
     inject: [ConfigService],
     useFactory: async (configService: ConfigService) => ({}),

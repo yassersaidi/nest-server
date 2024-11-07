@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Delete, Res, UseGuards, Req, BadRequestException, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Delete, Res, UseGuards, Req, BadRequestException, UseInterceptors, UploadedFile, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator, Inject } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { loginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
@@ -14,17 +14,14 @@ import { diskStorage } from 'multer';
 import { VerifyPhoneNumberDto } from './dto/verify-phone-number.dto';
 import { VerifyPhoneNumberCodeDto } from './dto/verify-phone-number-code.dto';
 import { UserReq, UserReqType } from '@/decorators/user.decorator';
+import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager';
 
 @Controller('auth')
 export class AuthController {
   constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly authService: AuthService,
     private readonly userService: UsersService) { }
-  @UseGuards(IsAuthed)
-  @Get("/hello")
-  getHello() {
-    return "Hello"
-  }
 
   // @Throttle({ default: { limit: 5, ttl: 300000 } })
   @Post("/register")
@@ -61,12 +58,17 @@ export class AuthController {
     return { message: 'Login successful', userId };
   }
 
-
   @UseGuards(IsAuthed)
   @Get("/me")
-  getMe(@Req() req: Request) {
-    return this.userService.getMe(req.userId)
-  }
+  async getMe(@UserReq() user: UserReqType) {
+    const cachedUserData = await this.cacheManager.get(user.userId)
+    if(cachedUserData){
+      return cachedUserData
+    }
+    const dbUserData = await this.userService.getMe(user.userId)
+    await this.cacheManager.set(user.userId, dbUserData, 5000)
+    return dbUserData
+  } 
 
   @UseGuards(IsAuthed)
   @Patch("/uploads/profile")
@@ -95,7 +97,7 @@ export class AuthController {
 
   @UseGuards(IsAuthed)
   @Delete("/me")
-  async deleteMe(@UserReq() user:UserReqType, @Res() res: Response) {
+  async deleteMe(@UserReq() user: UserReqType, @Res() res: Response) {
     const { message } = await this.userService.deleteUser(user.userId)
 
     res.clearCookie('accessToken', {
