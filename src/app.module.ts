@@ -35,11 +35,12 @@ import KeyvRedis from '@keyv/redis';
     useFactory: async (configService: ConfigService) => {
       const redisUri = configService.get<string>("REDIS_URI")
       const store = new Keyv({
-        store: new KeyvRedis(redisUri)
+        store: new KeyvRedis(redisUri),
+        ttl:20000
       })
       return {
         store: store as unknown as CacheStore,
-        ttl:20000
+        
       }   
     }
   }),

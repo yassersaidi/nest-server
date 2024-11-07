@@ -55,7 +55,7 @@ export class AuthController {
       sameSite: 'lax',
     });
 
-    return { message: 'Login successful', userId };
+    return { message: 'Login successful', userId, accessToken };
   }
 
   @UseGuards(IsAuthed)
@@ -63,10 +63,10 @@ export class AuthController {
   async getMe(@UserReq() user: UserReqType) {
     const cachedUserData = await this.cacheManager.get(user.userId)
     if(cachedUserData){
-      return cachedUserData
+      return cachedUserData   
     }
     const dbUserData = await this.userService.getMe(user.userId)
-    await this.cacheManager.set(user.userId, dbUserData, 5000)
+    await this.cacheManager.set(user.userId, dbUserData)
     return dbUserData
   } 
 
