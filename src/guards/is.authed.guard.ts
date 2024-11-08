@@ -1,13 +1,12 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { AuthedUserReqType } from "@/resources/auth/interfaces/authed-user.interface";
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
-import UAParser from "ua-parser-js";
 
 @Injectable()
 export class IsAuthed implements CanActivate {
     constructor(
-        @Inject('UAParser') private readonly uap: UAParser,
         private readonly tokenService: JwtService,
         private readonly configService: ConfigService
     ) { }
@@ -16,9 +15,12 @@ export class IsAuthed implements CanActivate {
 
         const request: Request = context.switchToHttp().getRequest()
         const token = this.extractTokenFromHeader(request)
-       
         if (!token) {
-            throw new UnauthorizedException()
+            throw new UnauthorizedException({
+                message: "Your access token is missing",
+                solution: "Provide your access token in authorization header.",
+                from: "Auth Guard"
+            })
         }
 
         try {
@@ -33,13 +35,21 @@ export class IsAuthed implements CanActivate {
                 throw new UnauthorizedException()
             }
 
-            request.userId = userId
-            request.username = username
-            request.role = role
+            const authedUser: AuthedUserReqType = {
+                userId,
+                username,
+                role
+            }
 
+            request.authedUser = authedUser
         }
         catch (error) {
-            throw new UnauthorizedException(error)
+            throw new UnauthorizedException({
+                ...error,
+                message: "Your access token is expired",
+                solution: "Sign in again or refresh your token",
+                from: "Auth Guard"
+            })
         }
 
         return true

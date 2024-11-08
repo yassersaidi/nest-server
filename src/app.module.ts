@@ -14,41 +14,37 @@ import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
 
 @Module({
-  imports: [ConfigModule.forRoot({
-    isGlobal: true
-  }),
-  ThrottlerModule.forRoot([{
-    ttl: 60000,
-    limit: 100,
-  }]),
-  ServeStaticModule.forRoot({
-    rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
-    serveRoot: '/uploads/profile/'
-  }),
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true
+    }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
+      serveRoot: '/uploads/profile/'
+    }),
     CommonModule,
     UsersModule,
     AuthModule,
     DatabaseModule,
-  CacheModule.registerAsync({
-    isGlobal: true,
-    inject: [ConfigService],
-    useFactory: async (configService: ConfigService) => {
-      const redisUri = configService.get<string>("REDIS_URI")
-      const store = new Keyv({
-        store: new KeyvRedis(redisUri),
-        ttl:20000
-      })
-      return {
-        store: store as unknown as CacheStore,
-        
-      }   
-    }
-  }),
-  JwtModule.registerAsync({
-    inject: [ConfigService],
-    useFactory: async (configService: ConfigService) => ({}),
-  }),
-
+    CacheModule.registerAsync({
+      isGlobal: true,
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const redisUri = configService.get<string>("REDIS_URI")
+        const store = new Keyv({
+          store: new KeyvRedis(redisUri),
+          ttl: 20000
+        })
+        return {
+          store: store as unknown as CacheStore,
+        }
+      }
+    }),
+    JwtModule,
   ],
   providers: [
     {

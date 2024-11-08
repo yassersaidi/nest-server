@@ -1,43 +1,60 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { loginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { generateNumericCode } from 'src/utils/generateCode';
-import { sendVerificationCode } from 'src/utils/sendEmails';
 import { DrizzleAsyncProvider } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as db_schema from '@/resources/database/schema';
 import { lt, eq, and, gt } from 'drizzle-orm';
 import UAParser from 'ua-parser-js';
-import { sendSMS } from '@/utils/sendSMS';
+import { EmailService } from '../common/emails/email.service';
+import { DefaultHttpException } from '../common/errors/error/custom-error.error';
+import { SMSService } from '../common/sms/sms.service';
+import { PROVIDERS } from '../common/constants';
+import { GeneratorService } from '../common/generators/generator.service';
+import { SessionService } from './sessions/session.service';
+import { VerificationCodeService } from './verification-code/verification-code.service';
 
 const bcrypt = require('bcryptjs');
 
-type UserType = typeof db_schema.User.$inferSelect
+type UserType = typeof db_schema.User.$inferSelect;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(DrizzleAsyncProvider) private db: NodePgDatabase<typeof db_schema>,
-    @Inject('UAParser') private readonly uap: UAParser,
+    @Inject(PROVIDERS.USER_AGENT_PARSER) private readonly uap: UAParser,
+    private readonly sessionService: SessionService,
+    private readonly verificationCodeService: VerificationCodeService,
+    private readonly generatorService: GeneratorService,
+    private readonly emailService: EmailService,
+    private readonly smsService: SMSService,
     private readonly tokenService: JwtService,
     private readonly configService: ConfigService,
   ) { }
 
-
   async login(user: UserType, loginDto: loginDto, ip: string | string[], deviceInfo: string) {
+    this.logger.log('Attempting to login user with email: ' + loginDto.email);  
 
-    const isValid = await bcrypt.compare(loginDto.password, user?.password)
+    const isValid = await bcrypt.compare(loginDto.password, user?.password);
 
     if (!isValid) {
-      throw new BadRequestException("Invalid credentials")
+      this.logger.warn(`Invalid login attempt for user with email: ${loginDto.email}`); 
+      throw new DefaultHttpException(
+        "Invalid credentials",
+        "Enter valid email or password",
+        "Login Service",
+        HttpStatus.BAD_REQUEST
+      );
     }
 
-    const isAdmin = await this.getAdmin(user)
+    this.logger.log(`User ${user.id} logged in successfully.`);
 
     const accessToken = this.tokenService.sign(
-      { userId: user.id, username: user.username, role: isAdmin ? "admin" : "user" },
+      { userId: user.id, username: user.username, role: user.role },
       {
         secret: this.configService.get('JWT_SECRET'),
         expiresIn: this.configService.get('JWT_EXPIRES_IN'),
@@ -45,39 +62,38 @@ export class AuthService {
     );
 
     const refreshToken = this.tokenService.sign(
-      { userId: user.id, username: user.username, role: isAdmin ? "admin" : "user" },
+      { userId: user.id, username: user.username, role: user.role },
       {
         secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
         expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN'),
       },
     );
+    
+    await this.sessionService.createSession(user.id, refreshToken, ip.toString(), deviceInfo);
 
-    await this.db.insert(db_schema.Session).values({
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      refreshToken,
-      deviceInfo,
-      ipAddress: ip.toString()
-    })
-
-    await this.db.delete(db_schema.Session).where(lt(db_schema.Session.expiresAt, new Date()))
+    await this.db.delete(db_schema.Session).where(lt(db_schema.Session.expiresAt, new Date()));
 
     return {
       accessToken,
       refreshToken,
       userId: user.id
-    }
+    };
   }
 
   async logout(refreshToken: string, res: Response) {
-    const session = await this.db.select().from(db_schema.Session).where(eq(db_schema.Session.refreshToken, refreshToken)).limit(1);
-
+    this.logger.log('Attempting to log out user with refresh token: ' + refreshToken);
+    const session = await this.sessionService.findSessionByRefreshToken(refreshToken);
     if (session.length === 0) {
-      throw new UnauthorizedException('Session not found or already logged out');
+      this.logger.warn(`No session found for refresh token: ${refreshToken}`);
+      throw new DefaultHttpException(
+        "Session not found or already logged out",
+        "Ensure you are logged in before attempting to log out.",
+        "Logout",
+        HttpStatus.UNAUTHORIZED
+      );
     }
 
-    await this.db.delete(db_schema.Session).where(eq(db_schema.Session.refreshToken, refreshToken));
-
+    await this.sessionService.deleteSessionByRefreshToken(refreshToken);
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: true,
@@ -90,232 +106,101 @@ export class AuthService {
       sameSite: 'lax',
     });
 
+    this.logger.log(`User logged out successfully with refresh token: ${refreshToken}`);
+
     return { message: 'Logout successful' };
   }
 
-
-  async verifyEmail(email: string, user: UserType) {
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'email'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length > 0) {
-      return { message: 'A verification code has already been sent. Please check your email.' };
-    }
-
-    const code = generateNumericCode(6);
-
-    const isSent = await sendVerificationCode(email, code, "Your email verification code", "Use this code to confirm your email");
-
-    if (!isSent) {
-      throw new BadRequestException("Can't send the verification code, try again!");
-    }
-
-    const verificationCode: typeof db_schema.VerificationCode.$inferInsert = {
-      userId: user.id,
-      type: "email",
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    };
-
-    await this.db.insert(db_schema.VerificationCode).values(verificationCode);
-
-    const now = new Date();
-    await this.db.delete(db_schema.VerificationCode).where(lt(db_schema.VerificationCode.expiresAt, now));
-
-    return { message: 'Verification code sent!' };
+  async verifyEmail(email: string, userId: string) {
+    this.logger.log(`Sending email verification code to user ${userId} at email: ${email}`);
+    return this.verificationCodeService.sendEmailVerificationCode(email, userId);
   }
 
   async verifyEmailCode(user: UserType, code: string) {
-
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'email'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      eq(db_schema.VerificationCode.code, code),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length === 0) {
-      throw new BadRequestException('Invalid or expired code.');
-    }
-
-    await this.db.delete(db_schema.VerificationCode).where(eq(db_schema.VerificationCode.id, existingCode[0].id))
-
-    return true;
+    this.logger.log(`Verifying email code for user ${user.id}`);
+    return this.verificationCodeService.verifyEmailCode(user.id, code);
   }
 
-  async verifyPhoneNumber(phoneNumber: string, user: UserType) {
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'phone_number'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length > 0) {
-      return { message: 'A verification code has already been sent. Please check your messages.' };
-    }
-
-    const code = generateNumericCode(6);
-
-    const isSent = await sendSMS(phoneNumber, `Your verification code ${code}`);
-
-    if (!isSent) {
-      throw new BadRequestException("Can't send the verification code, try again!");
-    }
-
-    const verificationCode: typeof db_schema.VerificationCode.$inferInsert = {
-      userId: user.id,
-      type: "phone_number",
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    };
-
-    await this.db.insert(db_schema.VerificationCode).values(verificationCode);
-
-    const now = new Date();
-    await this.db.delete(db_schema.VerificationCode).where(lt(db_schema.VerificationCode.expiresAt, now));
-
-    return { message: 'Verification code sent!' };
+  async verifyPhoneNumber(phoneNumber: string, userId: string) {
+    this.logger.log(`Sending phone verification code to user ${userId} at phone number: ${phoneNumber}`);
+    return this.verificationCodeService.sendPhoneVerificationCode(phoneNumber, userId);
   }
 
-  async verifyPhoneNumberCode(user: UserType, code: string) {
-
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'phone_number'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      eq(db_schema.VerificationCode.code, code),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length === 0) {
-      throw new BadRequestException('Invalid or expired code.');
-    }
-
-    await this.db.delete(db_schema.VerificationCode).where(eq(db_schema.VerificationCode.id, existingCode[0].id))
-
-    return true;
+  async verifyPhoneNumberCode(userId: string, code: string) {
+    this.logger.log(`Verifying phone code for user ${userId}`);
+    return this.verificationCodeService.verifyPhoneCode(userId, code);
   }
 
   async forgotPassword(user: UserType, email: string) {
-
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'password_reset'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length > 0) {
-      return { message: 'A reset code has already been sent. Please check your email.' };
-    }
-
-    const code = generateNumericCode(6);
-
-    const isSent = await sendVerificationCode(email, code, "Your password verification code", "Use this code to reset your password");
-
-    if (!isSent) {
-      throw new BadRequestException('Failed to send the reset code. Please try again.');
-    }
-
-    const verificationCode: typeof db_schema.VerificationCode.$inferInsert = {
-      userId: user.id,
-      type: "password_reset",
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    };
-
-    await this.db.insert(db_schema.VerificationCode).values(verificationCode);
-
-    const now = new Date();
-    await this.db.delete(db_schema.VerificationCode).where(lt(db_schema.VerificationCode.expiresAt, now));
-
-    return { message: 'Password reset code sent!' };
+    this.logger.log(`Sending password reset code to user ${user.id} at email: ${email}`);
+    return this.verificationCodeService.sendPasswordResetCode(email, user.id);
   }
 
-  async resetPassword(user: UserType, email: string, code: string, newPassword: string) {
-
-    const existingCode = await this.db.select().from(db_schema.VerificationCode).where(and(
-      eq(db_schema.VerificationCode.type, 'password_reset'),
-      eq(db_schema.VerificationCode.userId, user.id),
-      eq(db_schema.VerificationCode.code, code),
-      gt(db_schema.VerificationCode.expiresAt, new Date())
-    ))
-
-    if (existingCode.length === 0) {
-      throw new BadRequestException('Invalid or expired reset password code.');
-    }
+  async resetPassword(user: UserType, code: string, newPassword: string) {
+    this.logger.log(`Resetting password for user ${user.id}`);
+    await this.verificationCodeService.verifyPasswordResetCode(user.id, code);
 
     const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.PASSWORD_SALT || '13'));
-    await this.db.delete(db_schema.VerificationCode).where(eq(db_schema.VerificationCode.id, existingCode[0].id))
-
     return { hashedPassword };
   }
 
-  async refreshToken(refreshToken: string) {
-    const session = await this.db.select().from(db_schema.Session).where(and(
-      eq(db_schema.Session.refreshToken, refreshToken),
-      lt(db_schema.Session.expiresAt, new Date())
-    ))
-
-    if (session.length === 0) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const { userId, username, role } = await this.tokenService.verifyAsync(
-      refreshToken,
-      {
-        secret: this.configService.get("JWT_REFRESH_TOKEN_SECRET")
-      }
-    )
-
-    if (!userId) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const accessToken = this.tokenService.sign(
-      { userId, username, role },
-      {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      },
-    );
-
-    return {
-      accessToken,
-      userId
-    }
-
+  async refreshToken(refreshToken: string, ip: string | string[], deviceInfo: string) {
+    this.logger.log(`Refreshing token for refresh token: ${refreshToken}`);
+    return this.sessionService.refreshToken(refreshToken, ip.toString(), deviceInfo);
   }
 
   async getAdmin(user: UserType) {
-    const admins = await this.db.select().from(db_schema.Admin).where(eq(db_schema.Admin.email, user.email))
-    if (admins.length === 0) {
-      return false
+    this.logger.log(`Checking if user ${user.id} is an admin`);
+    const admins = await this.db.select().from(db_schema.User).where(and(
+      eq(db_schema.User.id, user.id),
+      eq(db_schema.User.role, "ADMIN")
+    ));
+
+    if (admins.length > 0) {
+      this.logger.warn(`User ${user.id} is already an admin`);
+      throw new DefaultHttpException(
+        "This user is already an admin",
+        "No Solution.",
+        "Admin Service",
+        HttpStatus.BAD_REQUEST
+      );
     }
-    return true
+
+    return admins[0];
   }
 
-  async addAdmin(user: UserType) {
-    const isAdmin = await this.db.select().from(db_schema.Admin).where(eq(db_schema.Admin.email, user.email))
-    if (isAdmin.length > 0) {
-      throw new BadRequestException("This user is already an admin")
-    }
-    const admin: typeof db_schema.Admin.$inferInsert = {
-      email: user.email,
-      userId: user.id
+  async isNotAdmin(user: UserType) {
+    this.logger.log(`Checking if user ${user.id} is not an admin`);
+    const admins = await this.db.select().from(db_schema.User).where(and(
+      eq(db_schema.User.id, user.id),
+      eq(db_schema.User.role, "ADMIN")
+    ));
+
+    if (admins.length > 0) {
+      this.logger.warn(`User ${user.id} is already an admin`);
+      throw new DefaultHttpException(
+        "This user is already an admin",
+        "No Solution.",
+        "Admin Service",
+        HttpStatus.BAD_REQUEST
+      );
     }
 
-    await this.db.insert(db_schema.Admin).values(admin)
+    return true;
   }
 
-  async getUserDeviceInfo(req: Request) { 
-    const userAgent = this.uap.setUA(req.headers["user-agent"]).getResult()
-    const ipAddress = req.ip || req.headers['x-forwarded-for']
-    const deviceInfo = `${userAgent.browser.name}${userAgent.browser.version} - ${userAgent.device.model} - ${userAgent.os.name}`
+  async getUserDeviceInfo(req: Request) {
+    const userAgent = this.uap.setUA(req.headers["user-agent"]).getResult();
+    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const deviceInfo = `${userAgent.browser.name}${userAgent.browser.version} - ${userAgent.device.model} - ${userAgent.os.name}`;
     return {
       deviceInfo,
       ipAddress
-    };  
+    };
+  }
+
+  async getSessions(userId: string) {
+    this.logger.log(`Fetching sessions for user ${userId}`);
+    return this.sessionService.getSessions(userId);
   }
 }

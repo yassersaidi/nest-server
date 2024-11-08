@@ -1,11 +1,6 @@
 import { IsEmail, IsNotEmpty, IsString, Length, MinLength } from 'class-validator';
 
 export class VerifyPhoneNumberCodeDto {
-
-    @IsNotEmpty()
-    @IsEmail()
-    email: string;
-
     @IsNotEmpty()
     @IsString()
     @MinLength(10)

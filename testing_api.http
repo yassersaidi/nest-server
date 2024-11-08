@@ -3,12 +3,12 @@
 ### Create an Account
 POST {{baseUrl}}/auth/register HTTP/1.1
 Content-Type: application/json
-
+    
 {
-    "email":"email@example.com",
-    "username":"helloworld",
-    "password":"12345678",
-    "phoneNumber":"+21354454545"
+    "email":"testing@email.com",
+    "username":"hellov77vcv",
+    "password":"testing2024",
+    "phoneNumber":"+21357754545"
 }
 
 ### Login an Account
@@ -17,13 +17,106 @@ POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-    "email":"email@example.com",
-    "password":"12345678"
+    "email":"testing@email.com",
+    "password":"testing2024"
 }
 
 
 ### Get the current authed user by accessToken
-
 GET {{baseUrl}}/auth/me
 Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+### Testing timeout interceptor
+GET {{baseUrl}}/auth/
+
+
+### Send Email verfication code
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+
+{
+    "email":"testing@email.com"
+}
+
+### Validate Email verfication code
+POST {{baseUrl}}/auth/verify-email-code
+Content-Type: application/json
+
+{
+    "email":"testing@email.com",
+    "code":"340582"
+}
+
+### Send Email verfication code
+POST {{baseUrl}}/auth/verify-phone-number
+Content-Type: application/json
+
+{
+    "phoneNumber":"+21354754545"
+}
+
+### Validate Email verfication code
+POST {{baseUrl}}/auth/verify-phone-code
+Content-Type: application/json
+
+{
+    "phoneNumber":"+21354754545",
+    "code":"444444"
+}
+
+### Request reset password
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+    "email":"testing@email.com"
+}
+
+### Reset password
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+    "email":"testing@email.com",
+    "code":"968707",
+    "password":"testing2024"
+}s
+
+### Logout user
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+Cookie: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJlNTQ2ODVjYi1lYzRiLTRmMzYtYjVjMC0zMzRhZmVlYTBhOTMiLCJ1c2VybmFtZSI6ImhlbGxvdjc3dmN2Iiwicm9sZSI6IlVTRVIiLCJpYXQiOjE3MzExMDUxNDksImV4cCI6MTczMTEwNTc0OX0.Iua7xCLFKk6NMeWHBqQkkMStAw106Uby6jU81YhWiCU; Max-Age=604800; Path=/; Expires=Fri, 15 Nov 2024 22:13:02 GMT; HttpOnly; Secure; SameSite=Lax
+
+
+
+
+### update refresh token
+POST {{baseUrl}}/auth/rt
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+Cookie: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhOTQxNTMwZS1jMzQ4LTRlZDgtYTMwZi1jOGYwZmI2YmJlZTUiLCJ1c2VybmFtZSI6ImhlbGxvdnZjdiIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzMxMTAzOTgyLCJleHAiOjE3MzExMDQ1ODJ9.QFOoCBGCnzmll7gsj-_CD74Ud6wL9wK5j1sM3gKQxo8; Max-Age=604800; Path=/; Expires=Fri, 15 Nov 2024 22:13:02 GMT; HttpOnly; Secure; SameSite=Lax
+
+
+### Delete authed User
+DELETE {{baseUrl}}/auth/me
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### Get all users (only admins can)
+Get {{baseUrl}}/users/all
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+### Search in users
+
+GET  {{baseUrl}}/users/search?username=helloyasser
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### Get authed user sessions
+
+GET  {{baseUrl}}/auth/sessions
 Authorization: Bearer {{loginAuth.response.body.$.accessToken}}

@@ -24,4 +24,4 @@ export const DrizzleAsyncProvider = 'DrizzleAsyncProvider';
     exports: [DrizzleAsyncProvider]
 })
 
-export class DatabaseModule { }
+export class DatabaseModule {}
