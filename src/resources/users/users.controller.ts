@@ -4,14 +4,15 @@ import {
   UseInterceptors
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { IsAuthed } from '@/guards/is.authed.guard';
+import { IsAuthed } from '@/resources/common/guards/is.authed.guard';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
-import { UserRolesGuard } from '@/guards/user-roles.guard';
+import { UserRolesGuard } from '@/resources/common/guards/user-roles.guard';
 import { AccessRoles } from '../common/decorators/user-roles.decorator';
 import { UserRoles } from '../common/enums/user-roles.enum';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { UserInterceptor } from './interceptors/users.interceptor';
+import { GetUsersQueryDto } from './dto/get-users.dto';
 
 @UseGuards(IsAuthed, UserRolesGuard)
 @UseInterceptors(UserInterceptor)
@@ -25,13 +26,13 @@ export class UsersController {
 
   @AccessRoles([UserRoles.ADMIN])
   @Get('/all')
-  async getAllUsers() {
+  async getAllUsers(@Query() getUsersQuery: GetUsersQueryDto) {
     const cachedUsers = await this.cacheManager.get("users")
     if (cachedUsers) {
       return cachedUsers
     }
-    const users = await this.usersService.getAll()
-    await this.cacheManager.set("users", users)
+    const users = await this.usersService.getAll(getUsersQuery)
+    await this.cacheManager.set("users", users, 10000)
     return users
   }
 

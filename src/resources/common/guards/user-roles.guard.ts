@@ -1,7 +1,8 @@
 import { AccessRoles } from "@/resources/common/decorators/user-roles.decorator";
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Injectable, ForbiddenException, HttpStatus } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
+import { DefaultHttpException } from "../errors/error/custom-error.error";
 
 @Injectable()
 export class UserRolesGuard implements CanActivate {
@@ -16,10 +17,12 @@ export class UserRolesGuard implements CanActivate {
     const role = request.authedUser.role;
 
     if (!accessRoles.includes(role)) {
-      throw new ForbiddenException({
-        message: "You are not authorized to access this resource",
-        from: "Roles Guard"
-      });
+      throw new DefaultHttpException(
+        "You are not authorized to access this resource",
+        "",
+        "Roles Guard",
+        HttpStatus.UNAUTHORIZED
+      );
     }
 
     return true;

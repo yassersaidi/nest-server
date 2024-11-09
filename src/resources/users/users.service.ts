@@ -5,9 +5,10 @@ import { SearchUsersQueryDto } from './dto/search-users.dto';
 import { DrizzleAsyncProvider } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as db_schema from '@/resources/database/schema';
-import { eq, or } from 'drizzle-orm';
+import { asc, desc, eq, or } from 'drizzle-orm';
 import { DefaultHttpException } from '../common/errors/error/custom-error.error';
 import { UserVerificationFields } from './interfaces/user.interface';
+import { GetUsersQueryDto } from './dto/get-users.dto';
 
 type UserType = typeof db_schema.User.$inferSelect;
 const bcrypt = require('bcryptjs');
@@ -19,16 +20,16 @@ export class UsersService {
   constructor(
     @Inject(DrizzleAsyncProvider) private db: NodePgDatabase<typeof db_schema>,
     private readonly configService: ConfigService
-  ) {}
+  ) { }
 
   async create(createUserDto: CreateUserDto) {
-    this.logger.log('Creating user...');
+    this.logger.log(`Creating user with: email = ${createUserDto.email}...`);
     const hashedPassword = await bcrypt.hash(createUserDto.password, parseInt(this.configService.get('PASSWORD_SALT')));
     const userValues: typeof db_schema.User.$inferInsert = {
       ...createUserDto,
       password: hashedPassword,
     };
-    
+
     try {
       const user = await this.db.insert(db_schema.User).values(userValues);
       this.logger.log('User created successfully');
@@ -134,9 +135,15 @@ export class UsersService {
     return user[0];
   }
 
-  async getAll() {
-    this.logger.log('Fetching all users');
-    const users = await this.db.select().from(db_schema.User);
+  async getAll(getUsersQuery: GetUsersQueryDto) {
+    const { limit, offset, order, sortBy } = getUsersQuery
+    this.logger.log(`Fetching users by: limit=${limit}, offset=${offset}, order=${order}, sortBy=${sortBy}`);
+    const users = await this.db
+      .select()
+      .from(db_schema.User)
+      .orderBy(order > 0 ? asc(db_schema.User[sortBy]) : desc(db_schema.User[sortBy]))
+      .offset(offset)
+      .limit(limit)
     this.logger.log('Fetched all users');
     return users;
   }

@@ -4,7 +4,7 @@ import { loginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { Response, Request } from 'express';
-import { IsAuthed } from '@/guards/is.authed.guard';
+import { IsAuthed } from '@/resources/common/guards/is.authed.guard';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -34,7 +34,7 @@ export class AuthController {
     return "h"
   }
 
-  // @Throttle({ default: { limit: 5, ttl: 300000 } })
+  @Throttle({ default: { limit: 1, ttl: 5000 } })
   @HttpCode(HttpStatus.OK)
   @Post("/register")
   async createUser(@Body() createUserDto: CreateUserDto) {

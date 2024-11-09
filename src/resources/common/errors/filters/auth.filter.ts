@@ -8,13 +8,9 @@ export class AuthFilter<T extends HttpException> implements ExceptionFilter {
 
         const status = exception.getStatus()
         const exceptionResponse = exception.getResponse()
-
-        const error = typeof response === 'string'
-            ? { message: exceptionResponse }
-            : (exceptionResponse as object)
-
+        const message = exceptionResponse
         response.status(status).json({
-            ...error,
+            ...(typeof message === 'string' ? { message } : message),
             url: response.req.url,
             timestamp: new Date().toISOString()
         })
