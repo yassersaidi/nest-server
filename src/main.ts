@@ -11,7 +11,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      transform: true
+      transform: true,
+      transformOptions:{
+        enableImplicitConversion: true
+      }
     }),
   );
   app.useGlobalInterceptors(new TimeoutInterceptor(3000))
