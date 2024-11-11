@@ -50,8 +50,13 @@ export class AuthController {
   ) {
     const { email } = loginDto
     const user = await this.userService.findUser({ email })
+    const { id, password, username, role } = user
     const { ipAddress, deviceInfo } = await this.authService.getUserDeviceInfo(req)
-    const { accessToken, refreshToken, userId } = await this.authService.login(user, loginDto, ipAddress, deviceInfo);
+    const { accessToken, refreshToken, userId } = await this.authService.login(
+      { id, password, username, role },
+      loginDto,
+      ipAddress,
+      deviceInfo);
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
@@ -140,7 +145,7 @@ export class AuthController {
       return { message: "User already verified" }
     }
 
-    const { message } = await this.authService.verifyEmail(email, user.id)
+    const { message } = await this.authService.verifyEmail(user.id, email)
     return message
   }
 
@@ -155,7 +160,7 @@ export class AuthController {
       return { message: "User already verified" };
     }
 
-    await this.authService.verifyEmailCode(user, code);
+    await this.authService.verifyEmailCode(user.id, code);
 
     await this.userService.updateUser(user.id, { isEmailVerified: true });
 
@@ -170,7 +175,7 @@ export class AuthController {
     if (user.isPhoneNumberVerified) {
       return { message: "User already verified" }
     }
-    const { message } = await this.authService.verifyPhoneNumber(phoneNumber, user.id)
+    const { message } = await this.authService.verifyPhoneNumber(user.id, phoneNumber)
     return message
   }
 
@@ -199,7 +204,7 @@ export class AuthController {
 
     const user = await this.userService.findUser({ email });
 
-    const { message } = await this.authService.forgotPassword(user, email);
+    const { message } = await this.authService.forgotPassword(user.id, email);
 
     return message
   }
@@ -209,7 +214,7 @@ export class AuthController {
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     const { email, code, password } = resetPasswordDto;
     const user = await this.userService.findUser({ email });
-    const { hashedPassword } = await this.authService.resetPassword(user, code, password);
+    const { hashedPassword } = await this.authService.resetPassword(user.id, code, password);
     await this.userService.updateUser(user.id, { password: hashedPassword });
 
     return { message: 'Password successfully reset' };
@@ -261,7 +266,7 @@ export class AuthController {
   async addAmin(@Body() verifyEmailDto: VerifyEmailDto) {
     const { email } = verifyEmailDto
     const user = await this.userService.findUser({ email })
-    await this.authService.isNotAdmin(user)
+    await this.userService.isNotAdmin(user.id)
     await this.userService.updateUser(user.id, { role: "ADMIN" })
   }
 }

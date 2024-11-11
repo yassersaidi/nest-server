@@ -51,7 +51,7 @@ export class SessionService {
             return session;
         } catch (error) {
             this.logger.error(`Error finding session for refresh token: ${refreshToken}, Error: ${error.message}`);
-            throw new InternalServerErrorException()
+            throw new InternalServerErrorException(error)
         }
     }
 
@@ -76,7 +76,7 @@ export class SessionService {
             this.logger.log(`Session deleted for refresh token: ${refreshToken}`);
         } catch (error) {
             this.logger.error(`Error deleting session for refresh token: ${refreshToken}, Error: ${error.message}`);
-            throw new InternalServerErrorException()
+            throw new InternalServerErrorException(error)
         }
     }
 
@@ -107,7 +107,7 @@ export class SessionService {
                 );
             }
 
-            const { userId, username, role } = await this.tokenService.verifyAsync(
+            const { userId, username, role } = this.tokenService.verify(
                 refreshToken,
                 { secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET') },
             );
@@ -162,7 +162,13 @@ export class SessionService {
             return sessions;
         } catch (error) {
             this.logger.error(`Error fetching sessions for user: ${userId}, Error: ${error.message}`);
-            throw new InternalServerErrorException()
+            throw new DefaultHttpException(
+                "Failed to fetch sessions",
+                "Please try again later",
+                "Session Service",
+                HttpStatus.INTERNAL_SERVER_ERROR
+            )
         }
+
     }
 }

@@ -3,46 +3,34 @@ import { loginDto } from './dto/login.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
-import { DrizzleAsyncProvider } from '../database/database.module';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as db_schema from '@/resources/database/schema';
-import { lt, eq, and, gt } from 'drizzle-orm';
 import UAParser from 'ua-parser-js';
-import { EmailService } from '../common/emails/email.service';
 import { DefaultHttpException } from '../common/errors/error/custom-error.error';
-import { SMSService } from '../common/sms/sms.service';
 import { PROVIDERS } from '../common/constants';
-import { GeneratorService } from '../common/generators/generator.service';
 import { SessionService } from './sessions/session.service';
 import { VerificationCodeService } from './verification-code/verification-code.service';
+import { LoginUserType } from './interfaces/login-user.interface';
 
 const bcrypt = require('bcryptjs');
-
-type UserType = typeof db_schema.User.$inferSelect;
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @Inject(DrizzleAsyncProvider) private db: NodePgDatabase<typeof db_schema>,
     @Inject(PROVIDERS.USER_AGENT_PARSER) private readonly uap: UAParser,
     private readonly sessionService: SessionService,
     private readonly verificationCodeService: VerificationCodeService,
-    private readonly generatorService: GeneratorService,
-    private readonly emailService: EmailService,
-    private readonly smsService: SMSService,
-    private readonly tokenService: JwtService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService,
   ) { }
 
-  async login(user: UserType, loginDto: loginDto, ip: string | string[], deviceInfo: string) {
-    this.logger.log('Attempting to login user with email: ' + loginDto.email);  
+  async login(user: LoginUserType, loginDto: loginDto, ip: string | string[], deviceInfo: string) {
+    this.logger.log('Attempting to login user with email: ' + loginDto.email);
 
     const isValid = await bcrypt.compare(loginDto.password, user?.password);
 
     if (!isValid) {
-      this.logger.warn(`Invalid login attempt for user with email: ${loginDto.email}`); 
+      this.logger.warn(`Invalid login attempt for user with email: ${loginDto.email}`);
       throw new DefaultHttpException(
         "Invalid credentials",
         "Enter valid email or password",
@@ -53,25 +41,23 @@ export class AuthService {
 
     this.logger.log(`User ${user.id} logged in successfully.`);
 
-    const accessToken = this.tokenService.sign(
+    const accessToken = this.jwtService.sign(
       { userId: user.id, username: user.username, role: user.role },
       {
         secret: this.configService.get('JWT_SECRET'),
         expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      },
+      }
     );
 
-    const refreshToken = this.tokenService.sign(
+    const refreshToken = this.jwtService.sign(
       { userId: user.id, username: user.username, role: user.role },
       {
         secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
         expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN'),
       },
     );
-    
-    await this.sessionService.createSession(user.id, refreshToken, ip.toString(), deviceInfo);
 
-    await this.db.delete(db_schema.Session).where(lt(db_schema.Session.expiresAt, new Date()));
+    await this.sessionService.createSession(user.id, refreshToken, ip.toString(), deviceInfo);
 
     return {
       accessToken,
@@ -111,19 +97,19 @@ export class AuthService {
     return { message: 'Logout successful' };
   }
 
-  async verifyEmail(email: string, userId: string) {
+  async verifyEmail(userId: string, email: string) {
     this.logger.log(`Sending email verification code to user ${userId} at email: ${email}`);
-    return this.verificationCodeService.sendEmailVerificationCode(email, userId);
+    return this.verificationCodeService.sendEmailVerificationCode(userId, email);
   }
 
-  async verifyEmailCode(user: UserType, code: string) {
-    this.logger.log(`Verifying email code for user ${user.id}`);
-    return this.verificationCodeService.verifyEmailCode(user.id, code);
+  async verifyEmailCode(userId: string, code: string) {
+    this.logger.log(`Verifying email code for user ${userId}`);
+    return this.verificationCodeService.verifyEmailCode(userId, code);
   }
 
-  async verifyPhoneNumber(phoneNumber: string, userId: string) {
+  async verifyPhoneNumber(userId: string, phoneNumber: string) {
     this.logger.log(`Sending phone verification code to user ${userId} at phone number: ${phoneNumber}`);
-    return this.verificationCodeService.sendPhoneVerificationCode(phoneNumber, userId);
+    return this.verificationCodeService.sendPhoneVerificationCode(userId, phoneNumber);
   }
 
   async verifyPhoneNumberCode(userId: string, code: string) {
@@ -131,14 +117,14 @@ export class AuthService {
     return this.verificationCodeService.verifyPhoneCode(userId, code);
   }
 
-  async forgotPassword(user: UserType, email: string) {
-    this.logger.log(`Sending password reset code to user ${user.id} at email: ${email}`);
-    return this.verificationCodeService.sendPasswordResetCode(email, user.id);
+  async forgotPassword(userId: string, email: string) {
+    this.logger.log(`Sending password reset code to user ${userId} at email: ${email}`);
+    return this.verificationCodeService.sendPasswordResetCode(userId, email);
   }
 
-  async resetPassword(user: UserType, code: string, newPassword: string) {
-    this.logger.log(`Resetting password for user ${user.id}`);
-    await this.verificationCodeService.verifyPasswordResetCode(user.id, code);
+  async resetPassword(userId: string, code: string, newPassword: string) {
+    this.logger.log(`Resetting password for user ${userId}`);
+    await this.verificationCodeService.verifyPasswordResetCode(userId, code);
 
     const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.PASSWORD_SALT || '13'));
     return { hashedPassword };
@@ -147,46 +133,6 @@ export class AuthService {
   async refreshToken(refreshToken: string, ip: string | string[], deviceInfo: string) {
     this.logger.log(`Refreshing token for refresh token: ${refreshToken}`);
     return this.sessionService.refreshToken(refreshToken, ip.toString(), deviceInfo);
-  }
-
-  async getAdmin(user: UserType) {
-    this.logger.log(`Checking if user ${user.id} is an admin`);
-    const admins = await this.db.select().from(db_schema.User).where(and(
-      eq(db_schema.User.id, user.id),
-      eq(db_schema.User.role, "ADMIN")
-    ));
-
-    if (admins.length > 0) {
-      this.logger.warn(`User ${user.id} is already an admin`);
-      throw new DefaultHttpException(
-        "This user is already an admin",
-        "No Solution.",
-        "Admin Service",
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    return admins[0];
-  }
-
-  async isNotAdmin(user: UserType) {
-    this.logger.log(`Checking if user ${user.id} is not an admin`);
-    const admins = await this.db.select().from(db_schema.User).where(and(
-      eq(db_schema.User.id, user.id),
-      eq(db_schema.User.role, "ADMIN")
-    ));
-
-    if (admins.length > 0) {
-      this.logger.warn(`User ${user.id} is already an admin`);
-      throw new DefaultHttpException(
-        "This user is already an admin",
-        "No Solution.",
-        "Admin Service",
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    return true;
   }
 
   async getUserDeviceInfo(req: Request) {

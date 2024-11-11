@@ -5,7 +5,7 @@ import { SearchUsersQueryDto } from './dto/search-users.dto';
 import { DrizzleAsyncProvider } from '../database/database.module';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as db_schema from '@/resources/database/schema';
-import { asc, desc, eq, or } from 'drizzle-orm';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 import { DefaultHttpException } from '../common/errors/error/custom-error.error';
 import { UserVerificationFields } from './interfaces/user.interface';
 import { GetUsersQueryDto } from './dto/get-users.dto';
@@ -31,9 +31,18 @@ export class UsersService {
     };
 
     try {
-      const user = await this.db.insert(db_schema.User).values(userValues);
+      const user = await this.db
+        .insert(db_schema.User)
+        .values(userValues)
+        .returning({
+          id: db_schema.User.id,
+          email: db_schema.User.email,
+          phoneNumber: db_schema.User.phoneNumber,
+          username: db_schema.User.username
+        });
+
       this.logger.log('User created successfully');
-      return user;
+      return user[0];
     } catch (error) {
       this.logger.error('Error creating user', error.stack);
 
@@ -55,7 +64,7 @@ export class UsersService {
         }
       }
 
-      throw new DefaultHttpException(error, '', 'Register Service', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new DefaultHttpException(error.message, '', 'Register Service', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -179,9 +188,9 @@ export class UsersService {
 
   async deleteUser(userId: string) {
     this.logger.log(`Deleting user with ID: ${userId}`);
-    const deletedUsers = await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId));
+    const deletedUsers = await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId)).returning();
 
-    if (!deletedUsers) {
+    if (deletedUsers.length === 0) {
       this.logger.warn(`User with ID: ${userId} not found for deletion`);
       throw new DefaultHttpException(
         `User with id: ${userId} not found`,
@@ -193,5 +202,25 @@ export class UsersService {
 
     this.logger.log('User deleted successfully');
     return { message: 'Your account has been deleted' };
+  }
+
+  async isNotAdmin(userId:string) {
+    this.logger.log(`Checking if user ${userId} is not an admin`);
+    const admins = await this.db.select().from(db_schema.User).where(and(
+      eq(db_schema.User.id, userId),
+      eq(db_schema.User.role, "ADMIN")
+    ));
+
+    if (admins.length > 0) {
+      this.logger.warn(`User ${userId} is already an admin`);
+      throw new DefaultHttpException(
+        "This user is already an admin",
+        "No Solution.",
+        "Admin Service",
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return true;
   }
 }

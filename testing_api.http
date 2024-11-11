@@ -5,10 +5,10 @@ POST {{baseUrl}}/auth/register HTTP/1.1
 Content-Type: application/json
     
 {
-        "email": "karen9@email.com",
-        "username": "karen",
-        "password": "Karen2024@",
-        "phoneNumber": "+2112345678910"
+        "email": "testing@email.com",
+        "username": "test2024",
+        "password": "testing2024@",
+        "phoneNumber": "+2114345677710"
 }
 
 ### Login an Account
@@ -36,7 +36,7 @@ POST {{baseUrl}}/auth/verify-email
 Content-Type: application/json
 
 {
-    "email":"testing@email.com"
+    "email":"karen9@email.com"
 }
 
 ### Validate Email verfication code
@@ -81,7 +81,7 @@ Content-Type: application/json
     "email":"testing@email.com",
     "code":"968707",
     "password":"testing2024"
-}s
+}
 
 ### Logout user
 POST {{baseUrl}}/auth/logout
