@@ -137,19 +137,21 @@ export class AuthController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IsAuthed)
   @Post('/verify-email')
   async sendVerificationCodeEmail(@Body() verifyEmailDto: VerifyEmailDto) {
     const { email } = verifyEmailDto
     const user = await this.userService.findUser({ email })
     if (user.isEmailVerified) {
-      return { message: "User already verified" }
+      return { message: "User email already verified!", userId: user.id }
     }
 
     const { message } = await this.authService.verifyEmail(user.id, email)
-    return message
+    return { message, userId: user.id }
   }
 
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IsAuthed)
   @Post('/verify-email-code')
   async verifyEmailCode(@Body() verifyCodeDto: VerifyCodeDto) {
     const { email, code } = verifyCodeDto;
@@ -157,29 +159,31 @@ export class AuthController {
     const user = await this.userService.findUser({ email });
 
     if (user.isEmailVerified) {
-      return { message: "User already verified" };
+      return { message: "User email already verified!", userId: user.id };
     }
 
     await this.authService.verifyEmailCode(user.id, code);
 
     await this.userService.updateUser(user.id, { isEmailVerified: true });
 
-    return { message: "User successfully verified" };
+    return { message: "User email successfully verified!", userId: user.id };
   }
 
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IsAuthed)
   @Post('/verify-phone-number')
   async sendVerificationCodePhone(@Body() verifyPhoneNumberDto: VerifyPhoneNumberDto) {
     const { phoneNumber } = verifyPhoneNumberDto
     const user = await this.userService.findUser({ phoneNumber })
     if (user.isPhoneNumberVerified) {
-      return { message: "User already verified" }
+      return { message: "User phone number already verified" }
     }
     const { message } = await this.authService.verifyPhoneNumber(user.id, phoneNumber)
-    return message
+    return { message, userId: user.id }
   }
 
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IsAuthed)
   @Post('/verify-phone-code')
   async verifyPhoneNumberCode(@Body() verifyPhoneNumberCodeDto: VerifyPhoneNumberCodeDto) {
     const { phoneNumber, code } = verifyPhoneNumberCodeDto;
@@ -187,14 +191,14 @@ export class AuthController {
     const user = await this.userService.findUser({ phoneNumber });
 
     if (user.isPhoneNumberVerified) {
-      return { message: "User already verified" };
+      return { message: "User phone number already verified!" }
     }
 
     await this.authService.verifyPhoneNumberCode(user.id, code)
 
     await this.userService.updateUser(user.id, { isPhoneNumberVerified: true });
 
-    return { message: "User successfully verified" };
+    return { message: "User phone number successfully verified", userId: user.id };
   }
 
   @HttpCode(HttpStatus.OK)
@@ -206,7 +210,7 @@ export class AuthController {
 
     const { message } = await this.authService.forgotPassword(user.id, email);
 
-    return message
+    return { message }
   }
 
   @HttpCode(HttpStatus.OK)
@@ -217,7 +221,7 @@ export class AuthController {
     const { hashedPassword } = await this.authService.resetPassword(user.id, code, password);
     await this.userService.updateUser(user.id, { password: hashedPassword });
 
-    return { message: 'Password successfully reset' };
+    return { message: 'Password successfully reset', userId: user.id };
   }
 
   @HttpCode(HttpStatus.OK)

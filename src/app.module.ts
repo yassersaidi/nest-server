@@ -18,10 +18,10 @@ import KeyvRedis from '@keyv/redis';
     ConfigModule.forRoot({
       isGlobal: true
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    // ThrottlerModule.forRoot([{
+    //   ttl: 60000,
+    //   limit: 100,
+    // }]),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
       serveRoot: '/uploads/profile/'
@@ -46,11 +46,12 @@ import KeyvRedis from '@keyv/redis';
     }),
     JwtModule,
   ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard
-    }
-  ]
+  // TODO: Enable it after testing
+  // providers: [
+  //   {
+  //     provide: APP_GUARD,
+  //     useClass: ThrottlerGuard
+  //   }
+  // ]
 })
 export class AppModule { }

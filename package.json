@@ -16,7 +16,7 @@
     "test:watch": "vitest --watch",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --run",
-    "test:e2e": "vitest run ./test",
+    "test:e2e": "vitest run -c ./vitest.config.e2e.mts",
     "clear:build": "rm -rf dist",
     "generate": "drizzle-kit generate --name",
     "migrate": "drizzle-kit migrate",
