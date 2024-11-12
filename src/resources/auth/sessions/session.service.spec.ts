@@ -3,9 +3,10 @@ import { vi } from "vitest"
 import { ConfigService } from "@nestjs/config"
 import { SessionService } from "./session.service"
 import { JwtService } from "@nestjs/jwt"
-import { HttpStatus, InternalServerErrorException } from '@nestjs/common'
+import { HttpStatus } from '@nestjs/common'
 import { DefaultHttpException } from '@/resources/common/errors/error/custom-error.error'
 import { DrizzleAsyncProvider } from '@/resources/database/database.module'
+import { UserRoles } from '@/resources/common/enums/user-roles.enum'
 
 const configServiceMock = {
     get: vi.fn((key: string) => {
@@ -13,7 +14,8 @@ const configServiceMock = {
             'JWT_SECRET': 'test-secret',
             'JWT_EXPIRES_IN': '1h',
             'JWT_REFRESH_TOKEN_SECRET': 'refresh-secret',
-            'JWT_REFRESH_TOKEN_EXPIRES_IN': '7d'
+            'JWT_REFRESH_TOKEN_EXPIRES_IN': '7d',
+            'REFRESH_TOKEN_COOKIE_MAX_AGE': '604800'
         };
         return config[key];
     })
@@ -25,6 +27,7 @@ const jwtServiceMock = {
 }
 
 let dbQueryResult: any[] = [];
+let transactionResult: any;
 
 const mockDb = {
     select: vi.fn().mockReturnThis(),
@@ -32,17 +35,22 @@ const mockDb = {
     where: vi.fn().mockReturnThis(),
     limit: vi.fn().mockImplementation(() => dbQueryResult),
     insert: vi.fn().mockReturnThis(),
-    values: vi.fn().mockImplementation(() => Promise.resolve()),
+    values: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
-    fullJoin: vi.fn().mockImplementation(() => dbQueryResult)
+    fullJoin: vi.fn().mockImplementation(() => dbQueryResult),
+    transaction: vi.fn().mockImplementation(async (callback) => {
+        if (transactionResult instanceof Error) {
+            throw transactionResult;
+        }
+        return callback(mockDb);
+    }),
+    returning: vi.fn().mockImplementation(() => [{ sessionId: 'test-session-id' }])
 };
-
-beforeEach(() => vi.clearAllMocks());
 
 describe("Session Service", () => {
     let service: SessionService;
     let jwtService: JwtService;
-    let configService: ConfigService
+    let configService: ConfigService;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -57,118 +65,132 @@ describe("Session Service", () => {
         service = module.get<SessionService>(SessionService);
         jwtService = module.get<JwtService>(JwtService);
         configService = module.get<ConfigService>(ConfigService);
-
-    })
-
+    });
 
     beforeEach(() => {
         vi.clearAllMocks();
         dbQueryResult = [];
+        transactionResult = null;
     });
-
 
     it('Session Service Should be defined', () => {
         expect(service).toBeDefined();
-    })
+    });
 
     describe('createSession', () => {
         const userId = 'testing-id';
-        const refreshToken = 'refresh-token';
         const ip = '127.0.0.1';
         const deviceInfo = 'Chrome Browser';
 
         it('Should create session successfully', async () => {
-            await service.createSession(userId, refreshToken, ip, deviceInfo);
+            const result = await service.createSession(userId, ip, deviceInfo);
 
+            expect(result).toBe('test-session-id');
             expect(mockDb.insert).toHaveBeenCalled();
             expect(mockDb.values).toHaveBeenCalledWith({
                 userId,
-                refreshToken,
                 expiresAt: expect.any(Date),
                 ipAddress: ip,
                 deviceInfo,
             });
         });
 
-        it('Should throw InternalServerError on database error', async () => {
-            mockDb.values.mockRejectedValueOnce(new InternalServerErrorException('Postgres error..'));
+        it('Should throw DefaultHttpException on database error', async () => {
+            transactionResult = new Error('Database error');
 
-            await expect(service.createSession(userId, refreshToken, ip, deviceInfo))
-                .rejects.toThrow(InternalServerErrorException);
+            await expect(service.createSession(userId, ip, deviceInfo))
+                .rejects.toThrow(DefaultHttpException);
         });
     });
-    describe('findSessionByRefreshToken', () => {
-        const refreshToken = 'refresh-token';
+
+    describe('findSessionById', () => {
+        const sessionId = 'test-session-id';
 
         it('Should find session successfully', async () => {
-            const mockSession = [{ id: 1, refreshToken }];
+            const mockSession = [{ id: sessionId }];
             dbQueryResult = mockSession;
 
-            const result = await service.findSessionByRefreshToken(refreshToken);
+            const result = await service.findSessionById(sessionId);
 
-            expect(result).toEqual(mockSession);
+            expect(result).toEqual(mockSession[0]);
             expect(mockDb.select).toHaveBeenCalled();
-            expect(mockDb.from).toHaveBeenCalled();
             expect(mockDb.where).toHaveBeenCalled();
             expect(mockDb.limit).toHaveBeenCalledWith(1);
         });
 
-        it('Should throw InternalServerError on database error', async () => {
-            mockDb.where.mockRejectedValueOnce(new InternalServerErrorException('Postgres error..'));
+        it('Should throw DefaultHttpException on database error', async () => {
+            mockDb.where.mockRejectedValueOnce(new Error('Database error'));
 
-            await expect(service.findSessionByRefreshToken(refreshToken))
-                .rejects.toThrow(InternalServerErrorException);
+            await expect(service.findSessionById(sessionId))
+                .rejects.toThrow(new DefaultHttpException(
+                    "Error finding session",
+                    "",
+                    "Sessions Service",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+                ));
         });
     });
 
-    describe('deleteSessionByRefreshToken', () => {
-        const refreshToken = 'refresh-token';
+    describe('deleteSessionById', () => {
+        const sessionId = 'test-session-id';
 
         it('Should delete session successfully', async () => {
-            dbQueryResult = [{ id: 1 }];
+            dbQueryResult = [{ id: sessionId }];
 
-            await service.deleteSessionByRefreshToken(refreshToken);
+            await service.deleteSessionById(sessionId);
 
-            expect(mockDb.select).toHaveBeenCalled();
-            expect(mockDb.from).toHaveBeenCalled();
-            expect(mockDb.where).toHaveBeenCalled();
-            expect(mockDb.limit).toHaveBeenCalledWith(1);
             expect(mockDb.delete).toHaveBeenCalled();
+            expect(mockDb.where).toHaveBeenCalled();
         });
 
-        it('Should throw error when session not found', async () => {
+        it('Should throw DefaultHttpException when session not found', async () => {
             dbQueryResult = [];
 
-            await expect(service.deleteSessionByRefreshToken(refreshToken))
+            await expect(service.deleteSessionById(sessionId))
                 .rejects.toThrow(new DefaultHttpException(
                     "Session not found or already logged out",
                     "Ensure you are logged in before attempting to log out.",
                     "Session Service",
-                    HttpStatus.UNAUTHORIZED,
+                    HttpStatus.UNAUTHORIZED
+                ));
+        });
+
+        it('Should throw DefaultHttpException on database error', async () => {
+            dbQueryResult = [{ id: sessionId }];
+            transactionResult = new Error('Database error');
+
+            await expect(service.deleteSessionById(sessionId))
+                .rejects.toThrow(new DefaultHttpException(
+                    "Failed to delete session",
+                    "Please try again later",
+                    "Session Service",
+                    HttpStatus.INTERNAL_SERVER_ERROR
                 ));
         });
     });
+
     describe('refreshToken', () => {
-        const refreshToken = 'refresh-token';
-        const ip = '127.0.0.1';
-        const deviceInfo = 'Chrome Browser';
+        const sessionId = 'test-session-id';
         const mockUser = {
             userId: 'testing-id',
             username: 'testuser',
-            role: 'user'
+            role: UserRoles.USER,
+            ipAddress: '127.0.0.1',
+            deviceInfo: 'Chrome Browser'
         };
 
         beforeEach(() => {
 
-            jwtServiceMock.verify.mockReturnValue(mockUser);
-            jwtServiceMock.sign.mockReturnValueOnce('new-refresh-token')
-                .mockReturnValueOnce('new-access-token');
+            dbQueryResult = [mockUser];
+            jwtServiceMock.sign
+                .mockReturnValueOnce('new-access-token')
+                .mockReturnValueOnce('new-refresh-token');
         });
 
-        it('should refresh tokens successfully', async () => {
-            dbQueryResult = [{ id: 1 }];
+        it('Should refresh tokens successfully', async () => {
+            mockDb.limit.mockImplementation(() => dbQueryResult)
 
-            const result = await service.refreshToken(refreshToken, ip, deviceInfo);
+            const result = await service.refreshToken(sessionId);
 
             expect(result).toEqual({
                 accessToken: 'new-access-token',
@@ -179,30 +201,36 @@ describe("Session Service", () => {
             expect(mockDb.insert).toHaveBeenCalled();
         });
 
-        it('should throw error for invalid refresh token', async () => {
+        it('Should throw DefaultHttpException when session not found', async () => {
             dbQueryResult = [];
 
-            await expect(service.refreshToken(refreshToken, ip, deviceInfo))
-                .rejects.toThrow(DefaultHttpException);
+            await expect(service.refreshToken(sessionId))
+                .rejects.toThrow(new DefaultHttpException(
+                    "Session not found or already logged out",
+                    "Please login again",
+                    "Session Service",
+                    HttpStatus.UNAUTHORIZED
+                ));
         });
 
-        it('should throw error when token verification fails', async () => {
-            dbQueryResult = [{ id: 1 }];
-            jwtServiceMock.verify.mockImplementationOnce(() => {
-                throw new Error('Token verification failed');
-            });
+        it('Should throw DefaultHttpException on database error', async () => {
+            transactionResult = new Error('Database error');
 
-            await expect(service.refreshToken(refreshToken, ip, deviceInfo))
-                .rejects.toThrow(DefaultHttpException);
+            await expect(service.refreshToken(sessionId))
+                .rejects.toThrow(new DefaultHttpException(
+                    "Failed to refresh token",
+                    "Please try logging in again",
+                    "Session Service",
+                    HttpStatus.UNAUTHORIZED
+                ));
         });
     });
 
     describe('getSessions', () => {
         const userId = 'testing-id';
 
-        it('should get user sessions successfully', async () => {
+        it('Should get user sessions successfully', async () => {
             const mockSessions = [{
-                refreshToken: 'token1',
                 expiresAt: new Date(),
                 userId: userId,
                 email: 'test@example.com'
@@ -213,16 +241,20 @@ describe("Session Service", () => {
 
             expect(result).toEqual(mockSessions);
             expect(mockDb.select).toHaveBeenCalled();
-            expect(mockDb.from).toHaveBeenCalled();
             expect(mockDb.where).toHaveBeenCalled();
             expect(mockDb.fullJoin).toHaveBeenCalled();
         });
 
-        it('Should throw error when fetching sessions fails', async () => {
-            mockDb.where.mockRejectedValueOnce(new Error('Postgres Error'));
+        it('Should throw DefaultHttpException when fetching sessions fails', async () => {
+            mockDb.where.mockRejectedValueOnce(new Error('Database error'));
 
             await expect(service.getSessions(userId))
-                .rejects.toThrow(DefaultHttpException);
+                .rejects.toThrow(new DefaultHttpException(
+                    "Failed to fetch sessions",
+                    "Please try again later",
+                    "Session Service",
+                    HttpStatus.INTERNAL_SERVER_ERROR
+                ));
         });
     });
 
@@ -234,13 +266,55 @@ describe("Session Service", () => {
             expect(mockDb.where).toHaveBeenCalled();
         });
 
-        it('Should throw InternalServerError on database error', async () => {
-            mockDb.delete.mockRejectedValueOnce(new Error('Postgres Error'));
+        it('Should throw InternalServerErrorException on database error', async () => {
+            mockDb.delete.mockRejectedValueOnce(new Error('Database error'));
 
             await expect(service.deleteExpiredSessions())
-                .rejects.toThrow(InternalServerErrorException);
+                .rejects.toThrow(DefaultHttpException);
         });
     });
 
+    describe('Token generation', () => {
+        const sessionId = 'test-session-id';
+        const payload = {
+            userId: 'test-user',
+            role: UserRoles.USER,
+            username: 'testuser',
+            sessionId: 'test-session-id'
+        };
+        beforeEach(() => {
+            jwtServiceMock.sign.mockReset();
+        });
 
-})
+
+        it('Should generate refresh token', () => {
+            jwtServiceMock.sign.mockReturnValueOnce('refresh-token');
+
+            const result = service.generateRefreshToken(sessionId);
+
+            expect(result).toBe('refresh-token');
+            expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+                { sessionId },
+                {
+                    secret: 'refresh-secret',
+                    expiresIn: '7d'
+                }
+            );
+        });
+
+        it('Should generate access token', () => {
+            jwtServiceMock.sign.mockReturnValueOnce('access-token');
+
+            const result = service.generateAccessToken(payload);
+
+            expect(result).toBe('access-token');
+            expect(jwtServiceMock.sign).toHaveBeenCalledWith(
+                payload,
+                {
+                    secret: 'test-secret',
+                    expiresIn: '1h'
+                }
+            );
+        });
+    });
+});

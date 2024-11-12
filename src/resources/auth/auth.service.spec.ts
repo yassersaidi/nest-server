@@ -13,7 +13,7 @@ import { SessionService } from "./sessions/session.service"
 import { VerificationCodeService } from "./verification-code/verification-code.service"
 import { UsersService } from "../users/users.service"
 import { JwtService } from "@nestjs/jwt"
-import { Request, Response } from "express"
+import { Request } from "express"
 
 const bcrypt = require('bcryptjs');
 
@@ -61,7 +61,7 @@ describe("Authentication Service", () => {
                 { provide: VerificationCodeService, useValue: VerificationCodeServiceMock },
                 { provide: "UAParser", useValue: uapMock }
             ]
-        }).compile();   
+        }).compile();
 
         service = module.get<AuthService>(AuthService);
 
@@ -127,6 +127,8 @@ describe("Authentication Service", () => {
         beforeEach(() => {
             UsersServiceMock.findUser.mockResolvedValue(user);
             SessionServiceMock.createSession.mockResolvedValue(true)
+            SessionServiceMock.generateAccessToken.mockReturnValue("token")
+            SessionServiceMock.generateRefreshToken.mockReturnValue("token")
             vi.spyOn(bcrypt, 'compare').mockImplementation(() => Promise.resolve(true));
         });
 
@@ -139,7 +141,8 @@ describe("Authentication Service", () => {
                 refreshToken: "token",
                 userId: user.id,
             });
-            expect(jwtServiceMock.sign).toHaveBeenCalledTimes(2);
+            expect(SessionServiceMock.generateAccessToken).toHaveBeenCalledTimes(1);
+            expect(SessionServiceMock.generateRefreshToken).toHaveBeenCalledTimes(1);
 
         });
 
@@ -161,68 +164,50 @@ describe("Authentication Service", () => {
         it('Should generate access and refresh tokens with correct payload', async () => {
             const result = await service.login(user, loginDto, "127.0.0.1", "Chrome");
 
-            expect(jwtServiceMock.sign).toHaveBeenCalledWith(
-                { userId: user.id, username: user.username, role: user.role },
-                expect.objectContaining({
-                    secret: "test-secret",
-                    expiresIn: "1h",
-                })
-            );
-
-            expect(jwtServiceMock.sign).toHaveBeenCalledWith(
-                { userId: user.id, username: user.username, role: user.role },
-                expect.objectContaining({
-                    secret: "refresh-secret",
-                    expiresIn: "7d",
-                })
-            );
+            expect(SessionServiceMock.generateAccessToken).toHaveBeenCalled();
+            expect(SessionServiceMock.generateRefreshToken).toHaveBeenCalled()
         });
 
     })
 
     describe("logout", async () => {
         it("Should successfully log out when session is found", async () => {
-            const refreshToken = "valid-refresh-token";
-            const res = { clearCookie: vi.fn() } as unknown as Response;
+            const sessionId = "valid-session-id";
 
-            const mockSession = [{ id: "session-id", refreshToken }];
+            const mockSession = [{
+                id: sessionId,
+                createdAt: "2024-11-12 19:47:18.861399",
+                userId: "user-id",
+                deviceInfo: "Chrome",
+                ipAddress: "192.168.5.5",
+                expiresAt: "2024-11-12 19:50:18.861399"
+            }];
 
-            SessionServiceMock.findSessionByRefreshToken.mockResolvedValue(mockSession);
-            SessionServiceMock.deleteSessionByRefreshToken.mockResolvedValue(true);
+            SessionServiceMock.findSessionById.mockResolvedValue(mockSession);
+            SessionServiceMock.deleteSessionById.mockResolvedValue(true);
 
-            const result = await service.logout(refreshToken, res);
+            const result = await service.logout(sessionId);
 
-            expect(SessionServiceMock.findSessionByRefreshToken).toHaveBeenCalledWith(refreshToken);
-            expect(SessionServiceMock.deleteSessionByRefreshToken).toHaveBeenCalledWith(refreshToken);
+            expect(SessionServiceMock.findSessionById).toHaveBeenCalledWith(sessionId);
+            expect(SessionServiceMock.deleteSessionById).toHaveBeenCalledWith(sessionId);
 
-            expect(res.clearCookie).toHaveBeenCalledWith('accessToken', expect.objectContaining({
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax',
-            }));
-            expect(res.clearCookie).toHaveBeenCalledWith('refreshToken', expect.objectContaining({
-                httpOnly: true,
-                secure: true,
-                sameSite: 'lax',
-            }));
 
             expect(result).toEqual({ message: 'Logout successful' });
         });
 
-        it("Should throw error when no session is found for the refresh token", async () => {
-            const refreshToken = "invalid-refresh-token";
-            const res = { clearCookie: vi.fn() } as unknown as Response;
+        it("Should throw error when no session is found", async () => {
+            const sessionId = "invalid-session-id";
 
-            SessionServiceMock.findSessionByRefreshToken.mockResolvedValue([]);
+            SessionServiceMock.findSessionById.mockResolvedValue(undefined);
 
-            await expect(service.logout(refreshToken, res)).rejects.toThrow(new DefaultHttpException(
+            await expect(service.logout(sessionId)).rejects.toThrow(new DefaultHttpException(
                 "Session not found or already logged out",
                 "Ensure you are logged in before attempting to log out.",
                 "Logout",
                 HttpStatus.UNAUTHORIZED
             ));
 
-            expect(SessionServiceMock.findSessionByRefreshToken).toHaveBeenCalledWith(refreshToken);
+            expect(SessionServiceMock.findSessionById).toHaveBeenCalledWith(sessionId);
         });
 
     })
@@ -311,14 +296,12 @@ describe("Authentication Service", () => {
 
     describe("refreshToken", () => {
         it("Should call refreshToken on sessionService with the correct arguments", async () => {
-            const refreshToken = "some_refresh_token";
-            const ip = "127.0.0.1";
-            const deviceInfo = "Chrome";
+            const sessionId = "session-id";
 
-            const refreshTokenSpy = vi.spyOn(SessionServiceMock, "refreshToken");
+            const sessionIdSpy = vi.spyOn(SessionServiceMock, "refreshToken");
 
-            await service.refreshToken(refreshToken, ip, deviceInfo);
-            expect(refreshTokenSpy).toHaveBeenCalledWith(refreshToken, ip, deviceInfo);
+            await service.refreshToken(sessionId);
+            expect(sessionIdSpy).toHaveBeenCalledWith(sessionId);
         });
     })
 
@@ -342,9 +325,9 @@ describe("Authentication Service", () => {
 
         it('Should return device info and IP address from "x-forwarded-for" header', async () => {
             const req = {
-                headers: { 
-                    'user-agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; de-CH) AppleWebKit/523.15 (KHTML, like Gecko, Safari/419.3) Arora/0.2', 
-                    'x-forwarded-for':"192.168.1.40"
+                headers: {
+                    'user-agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; de-CH) AppleWebKit/523.15 (KHTML, like Gecko, Safari/419.3) Arora/0.2',
+                    'x-forwarded-for': "192.168.1.40"
                 }
             } as unknown as Request;
 

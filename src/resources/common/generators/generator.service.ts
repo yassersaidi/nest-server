@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { CookieOptions } from "express";
 
 @Injectable()
 export class GeneratorService {
@@ -9,5 +10,18 @@ export class GeneratorService {
             code += possible.charAt(Math.floor(Math.random() * possible.length));
         }
         return code;
+    }
+
+    generateCookieOptions(maxAge?: number){
+        const options: Partial<CookieOptions> = {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+        };
+        if (maxAge !== undefined) {
+            options.maxAge = maxAge * 1000;
+        }
+        
+        return options;
     }
 }

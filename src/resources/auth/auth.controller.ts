@@ -19,12 +19,17 @@ import { AuthFilter } from '../common/errors/filters/auth.filter';
 import { DefaultHttpException } from '../common/errors/error/custom-error.error';
 import { Throttle } from '@nestjs/throttler';
 import { AuthedUserReqType } from './interfaces/authed-user.interface';
+import { RefreshTokenGuard } from './guards/refresh-token.guard';
+import { ConfigService } from '@nestjs/config';
+import { GeneratorService } from '../common/generators/generator.service';
 
 @UseFilters(AuthFilter)
 @Controller('auth')
 export class AuthController {
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly configService: ConfigService,
+    private readonly generatorService: GeneratorService,
     private readonly authService: AuthService,
     private readonly userService: UsersService) { }
 
@@ -58,19 +63,11 @@ export class AuthController {
       ipAddress,
       deviceInfo);
 
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000,
-      secure: true,
-      sameSite: 'lax',
-    });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      secure: true,
-      sameSite: 'lax',
-    });
+      const accessTokenMaxAge = parseInt(this.configService.get("ACCESS_TOKEN_COOKIE_MAX_AGE"));
+      const refreshTokenMaxAge = parseInt(this.configService.get("REFRESH_TOKEN_COOKIE_MAX_AGE"));
+      
+      res.cookie('accessToken', accessToken, this.generatorService.generateCookieOptions(accessTokenMaxAge));
+      res.cookie('refreshToken', refreshToken, this.generatorService.generateCookieOptions(refreshTokenMaxAge));
 
     return { message: 'Login successful', userId, accessToken };
   }
@@ -95,7 +92,6 @@ export class AuthController {
       filename: (req, file, cb) => {
         const { username } = req.authedUser
         const ext = file.mimetype.split("/")[1]
-        console.log(file)
         const filename = `${username}_profile.${ext}`;
         cb(null, filename);
       },
@@ -123,9 +119,9 @@ export class AuthController {
 
   @UseGuards(IsAuthed)
   @Post('/logout')
-  async logout(@Req() req: Request, @Res() res: Response) {
-    const refreshToken = req.cookies["refreshToken"]
-    if (!refreshToken) {
+  async logout(@AuthedUserReq() user: AuthedUserReqType, @Res() res: Response) {
+    const sessionId = user?.sessionId
+    if (!sessionId) {
       throw new DefaultHttpException(
         "Invalid refresh token",
         "Please login again",
@@ -133,7 +129,12 @@ export class AuthController {
         HttpStatus.UNAUTHORIZED
       );
     }
-    return this.authService.logout(refreshToken, res);
+    const { message } = await this.authService.logout(sessionId);
+
+    res.clearCookie('accessToken', this.generatorService.generateCookieOptions());
+    res.clearCookie('refreshToken', this.generatorService.generateCookieOptions());
+
+    return message
   }
 
   @HttpCode(HttpStatus.OK)
@@ -224,37 +225,20 @@ export class AuthController {
     return { message: 'Password successfully reset', userId: user.id };
   }
 
+  @UseGuards(RefreshTokenGuard)
   @HttpCode(HttpStatus.OK)
   @Post('/rt')
   async refreshToken(@Req() req: Request, @Res() res: Response) {
-    const { refreshToken } = req.cookies;
-    if (!refreshToken) {
-      throw new DefaultHttpException(
-        "Access denied, token missing!",
-        "Please login again",
-        "Tokens Service",
-        HttpStatus.UNAUTHORIZED
-      );
-    }
-    const { ipAddress, deviceInfo } = await this.authService.getUserDeviceInfo(req)
+    const sessionId = req.sessionId;
+    const { userId, accessToken, newRefreshToken } = await this.authService.refreshToken(sessionId);
 
-    const { userId, accessToken, newRefreshToken } = await this.authService.refreshToken(refreshToken, ipAddress, deviceInfo);
+    const accessTokenMaxAge = parseInt(this.configService.get("JWT_EXPIRES_IN"));
+    const refreshTokenMaxAge = parseInt(this.configService.get("JWT_REFRESH_TOKEN_EXPIRES_IN"));
+    
+    res.cookie('accessToken', accessToken, this.generatorService.generateCookieOptions(accessTokenMaxAge));
+    res.cookie('refreshToken', newRefreshToken, this.generatorService.generateCookieOptions(refreshTokenMaxAge));
 
-
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000,
-      secure: true,
-      sameSite: 'lax',
-    });
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      secure: true,
-      sameSite: 'lax',
-    });
-    return res.json({ userId, accessToken, refreshToken });
+    return res.json({ userId, accessToken });
   }
 
   @UseGuards(IsAuthed)

@@ -315,12 +315,12 @@ describe('AppController (e2e)', () => {
                 expect(accessTokenCookie).toContain('HttpOnly');
                 expect(accessTokenCookie).toContain('Secure');
                 expect(accessTokenCookie).toContain('SameSite=Lax');
-                expect(accessTokenCookie).toContain('Max-Age=3600');
+                expect(accessTokenCookie).toContain(`Max-Age=${process.env.ACCESS_TOKEN_COOKIE_MAX_AGE}`);
 
                 expect(refreshTokenCookie).toContain('HttpOnly');
                 expect(refreshTokenCookie).toContain('Secure');
                 expect(refreshTokenCookie).toContain('SameSite=Lax');
-                expect(refreshTokenCookie).toContain('Max-Age=604800');
+                expect(refreshTokenCookie).toContain(`Max-Age=${process.env.REFRESH_TOKEN_COOKIE_MAX_AGE}`);
 
                 expect(response.body).toHaveProperty("message", "Login successful");
                 expect(response.body).toHaveProperty("userId");

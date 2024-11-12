@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { EmailService } from "./email.service";
-import { ResendMock, EmailServiceMock } from './mocks/email.service.mock';
+import { ResendMock } from './mocks/email.service.mock';
 import { PROVIDERS } from "../constants";
 
 describe("EmailService", () => {
@@ -55,6 +55,21 @@ describe("EmailService", () => {
         };
 
         ResendMock.emails.send.mockResolvedValue({ data: null, error: 'Error' });
+
+        const result = await service.sendEmail(emailBody);
+
+        expect(result).toBe(false);
+    });
+
+    it("Should return false and throw an error if there's an error in the catch block", async () => {
+        const emailBody = { 
+            email: 'test@example.com', 
+            subject: 'Test Subject', 
+            html: '<p>Test HTML</p>', 
+            text: 'Test Text'
+        };
+
+        ResendMock.emails.send.mockRejectedValue({});
 
         const result = await service.sendEmail(emailBody);
 

@@ -6,6 +6,8 @@ import { ConfigService } from '@nestjs/config';
 import { DrizzleAsyncProvider } from '@/resources/database/database.module';
 import { DefaultHttpException } from '@/resources/common/errors/error/custom-error.error';
 import { and, eq, gt, lt } from 'drizzle-orm';
+import { AuthedUserReqType } from '../interfaces/authed-user.interface';
+import { UserRoles } from '@/resources/common/enums/user-roles.enum';
 
 @Injectable()
 export class SessionService {
@@ -17,66 +19,84 @@ export class SessionService {
         private readonly configService: ConfigService,
     ) { }
 
-    async createSession(userId: string, refreshToken: string, ip: string, deviceInfo: string) {
+    async createSession(userId: string, ip: string, deviceInfo: string) {
         this.logger.log(`Creating session for user: ${userId}, IP: ${ip}, Device: ${deviceInfo}`);
-
+        let sessionId: string
         try {
-            await this.db.insert(db_schema.Session).values({
-                userId,
-                refreshToken,
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                ipAddress: ip,
-                deviceInfo,
+            await this.db.transaction(async (tx) => {
+                const [session] = await tx.insert(db_schema.Session).values({
+                    userId,
+                    expiresAt: new Date(Date.now() + parseInt(this.configService.get("REFRESH_TOKEN_COOKIE_MAX_AGE")) * 1000),
+                    ipAddress: ip,
+                    deviceInfo,
+                }).returning({ sessionId: db_schema.Session.id });
+                sessionId = session.sessionId
+                await tx.delete(db_schema.Session)
+                    .where(lt(db_schema.Session.expiresAt, new Date()));
             });
 
-            await this.db.delete(db_schema.Session).where(lt(db_schema.Session.expiresAt, new Date()));
-            this.logger.log(`Session created for user: ${userId} with refresh token: ${refreshToken}`);
+            this.logger.log(`Session created for user: ${userId} with id: ${sessionId}`);
+            return sessionId
         } catch (error) {
             this.logger.error(`Error creating session for user: ${userId}, Error: ${error.message}`);
-            throw new InternalServerErrorException()
+            throw new DefaultHttpException(error, "", "Sessions Service", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
-    async findSessionByRefreshToken(refreshToken: string) {
-        this.logger.log(`Searching for session with refresh token: ${refreshToken}`);
+    async findSessionById(sessionId: string) {
+        this.logger.log(`Searching for session with id: ${sessionId}`);
         try {
-            const session = await this.db
+            const [session] = await this.db
                 .select()
                 .from(db_schema.Session)
                 .where(and(
-                    eq(db_schema.Session.refreshToken, refreshToken),
+                    eq(db_schema.Session.id, sessionId),
                     gt(db_schema.Session.expiresAt, new Date())
                 ))
                 .limit(1);
             return session;
         } catch (error) {
-            this.logger.error(`Error finding session for refresh token: ${refreshToken}, Error: ${error.message}`);
-            throw new InternalServerErrorException(error)
+            this.logger.error(`Error finding session for id: ${sessionId}, Error: ${error.message}`);
+            throw new DefaultHttpException("Error finding session", "", "Sessions Service", HttpStatus.INTERNAL_SERVER_ERROR)
         }
     }
 
-    async deleteSessionByRefreshToken(refreshToken: string) {
-        this.logger.log(`Deleting session for refresh token: ${refreshToken}`);
+    async deleteSessionById(sessionId: string) {
+        this.logger.log(`Deleting session : ${sessionId}`);
 
         try {
-            const session = await this.db.select().from(db_schema.Session)
-                .where(eq(db_schema.Session.refreshToken, refreshToken)).limit(1);
+            await this.db.transaction(async (tx) => {
+                const [session] = await tx
+                    .select()
+                    .from(db_schema.Session)
+                    .where(eq(db_schema.Session.id, sessionId))
+                    .limit(1);
+                if (!session) {
+                    this.logger.warn(`Session with ${sessionId} not found`);
+                    throw new DefaultHttpException("", "", "");
+                }
 
-            if (session.length === 0) {
-                this.logger.warn(`Session not found for refresh token: ${refreshToken}`);
+                await tx.delete(db_schema.Session)
+                    .where(eq(db_schema.Session.id, sessionId));
+            });
+
+            this.logger.log(`Session with id:${sessionId} deleted successfully`);
+        } catch (error) {
+            this.logger.error(`Error deleting session with id:${sessionId}: ${error.message}`);
+            if (error instanceof DefaultHttpException) {
                 throw new DefaultHttpException(
                     "Session not found or already logged out",
                     "Ensure you are logged in before attempting to log out.",
                     "Session Service",
-                    HttpStatus.UNAUTHORIZED,
+                    HttpStatus.UNAUTHORIZED
                 );
             }
-
-            await this.db.delete(db_schema.Session).where(eq(db_schema.Session.refreshToken, refreshToken));
-            this.logger.log(`Session deleted for refresh token: ${refreshToken}`);
-        } catch (error) {
-            this.logger.error(`Error deleting session for refresh token: ${refreshToken}, Error: ${error.message}`);
-            throw new InternalServerErrorException(error)
+            throw new DefaultHttpException(
+                "Failed to delete session",
+                "Please try again later",
+                "Session Service",
+                HttpStatus.INTERNAL_SERVER_ERROR
+            );
         }
     }
 
@@ -87,58 +107,71 @@ export class SessionService {
             this.logger.log('Expired sessions deleted');
         } catch (error) {
             this.logger.error(`Error deleting expired sessions: ${error.message}`);
-            throw new InternalServerErrorException()
+            throw new DefaultHttpException(
+                "Error deleting expired sessions",
+                "Ensure you are logged in before attempting to log out.",
+                "Session Service",
+                HttpStatus.UNAUTHORIZED
+            );
         }
     }
 
-    async refreshToken(refreshToken: string, ip: string, deviceInfo: string) {
-        this.logger.log(`Refreshing token for refresh token: ${refreshToken}, IP: ${ip}, Device: ${deviceInfo}`);
+    async refreshToken(sessionId: string) {
+        this.logger.log(`Started session refresh process`);
 
         try {
-            const session = await this.db.select().from(db_schema.Session).where(eq(db_schema.Session.refreshToken, refreshToken)).limit(1);
+            return await this.db.transaction(async (tx) => {
+                const [session] = await tx
+                    .select({
+                        userId: db_schema.Session.userId,
+                        role: db_schema.User.role,
+                        username: db_schema.User.username,
+                        ipAddress: db_schema.Session.ipAddress,
+                        deviceInfo: db_schema.Session.deviceInfo
+                    })
+                    .from(db_schema.Session)
+                    .where(eq(db_schema.Session.id, sessionId))
+                    .fullJoin(db_schema.User, eq(db_schema.Session.userId, db_schema.User.id))
+                if (!session) {
+                    this.logger.warn(`Session not found`);
+                    throw new DefaultHttpException("", "", "");
+                }
 
-            if (session.length === 0) {
-                this.logger.warn(`Invalid refresh token: ${refreshToken}`);
+                await tx.delete(db_schema.Session)
+                    .where(eq(db_schema.Session.id, sessionId));
+
+                const newSessionId = await this.createSession(session.userId, session.ipAddress, session.deviceInfo)
+
+                const newAccessToken = this.generateAccessToken({
+                    userId: session.userId,
+                    role: session.role as UserRoles,
+                    username: session.username,
+                    sessionId: newSessionId
+                })
+
+                const newRefreshToken = this.generateRefreshToken(newSessionId)
+                this.logger.log(`Successfully refreshed tokens for user: ${session.userId}`);
+
+                return {
+                    accessToken: newAccessToken,
+                    newRefreshToken,
+                    userId: session.userId
+                };
+            });
+
+        } catch (error) {
+            this.logger.error(` Error: ${error.message}`);
+            if (error instanceof DefaultHttpException) {
                 throw new DefaultHttpException(
-                    "Invalid refresh token",
-                    "Please login again",
+                    "Session not found or already logged out",
+                    "",
                     "Session Service",
-                    HttpStatus.UNAUTHORIZED,
+                    HttpStatus.UNAUTHORIZED
                 );
             }
-
-            const { userId, username, role } = this.tokenService.verify(
-                refreshToken,
-                { secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET') },
-            );
-
-            await this.db.delete(db_schema.Session).where(eq(db_schema.Session.refreshToken, refreshToken));
-
-            const newRefreshToken = this.tokenService.sign(
-                { userId, username, role },
-                {
-                    secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
-                    expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN'),
-                }
-            );
-
-            const newAccessToken = this.tokenService.sign(
-                { userId, username, role },
-                {
-                    secret: this.configService.get('JWT_SECRET'),
-                    expiresIn: this.configService.get('JWT_EXPIRES_IN')
-                },
-            );
-
-            await this.createSession(userId, newRefreshToken, ip, deviceInfo);
-
-            this.logger.log(`New refresh token and access token generated for user: ${userId}`);
-            return { accessToken: newAccessToken, newRefreshToken, userId };
-        } catch (error) {
-            this.logger.error(`Error refreshing token for refresh token: ${refreshToken}, Error: ${error.message}`);
             throw new DefaultHttpException(
-                "Your refresh token is expired",
-                "Sign in again or refresh your token",
+                "Failed to refresh token",
+                "Please try logging in again",
                 "Session Service",
                 HttpStatus.UNAUTHORIZED
             );
@@ -149,7 +182,6 @@ export class SessionService {
         this.logger.log(`Fetching sessions for user: ${userId}`);
         try {
             const sessions = await this.db.select({
-                refreshToken: db_schema.Session.refreshToken,
                 expiresAt: db_schema.Session.expiresAt,
                 userId: db_schema.Session.userId,
                 email: db_schema.User.email,
@@ -170,5 +202,26 @@ export class SessionService {
             )
         }
 
+    }
+
+    generateRefreshToken(sessionId: string) {
+        return this.tokenService.sign(
+            { sessionId },
+            {
+                secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
+                expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN')
+            }
+        );
+
+    }
+
+    generateAccessToken(payload: AuthedUserReqType) {
+        return this.tokenService.sign(
+            payload,
+            {
+                secret: this.configService.get('JWT_SECRET'),
+                expiresIn: this.configService.get('JWT_EXPIRES_IN')
+            }
+        );
     }
 }

@@ -165,7 +165,7 @@ describe('VerificationCodeService', () => {
         });
     });
 
-    describe('password reset', () => {
+    describe('sendPasswordResetCode', () => {
         const email = 'test@example.com';
         const userId = 'user123';
         const code = '123456';
@@ -183,6 +183,20 @@ describe('VerificationCodeService', () => {
                 html: expect.stringContaining('123456')
             });
             expect(mockDb.insert).toHaveBeenCalled();
+        });
+
+        it('Should throw error if password reset code not sent', async () => {
+            EmailServiceMock.sendEmail.mockResolvedValueOnce(false);
+
+            await expect(service.sendPasswordResetCode(userId, email)).rejects.toThrow(
+                new DefaultHttpException(
+                    "Unable to send reset code.",
+                    "Please check your email address and try again.",
+                    "Reset Password Service",
+                    HttpStatus.BAD_REQUEST
+                )
+            );
+            
         });
 
         it('Should verify password reset code successfully', async () => {

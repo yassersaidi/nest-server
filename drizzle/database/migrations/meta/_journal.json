@@ -15,6 +15,13 @@
       "when": 1731085590110,
       "tag": "0001_removed_admin_table_add_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1731425421334,
+      "tag": "0002_add_indexes_update_session",
+      "breakpoints": true
     }
   ]
 }

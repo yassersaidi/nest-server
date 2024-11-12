@@ -5,6 +5,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    coverage: {
+      include: ["**/*.service.ts"],
+      provider: "v8"
+    },
+    include: ["**/*.spec.ts"],
     globals: true,
     root: './',
   },

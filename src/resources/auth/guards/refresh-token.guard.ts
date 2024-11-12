@@ -1,11 +1,10 @@
-import { AuthedUserReqType } from "@/resources/auth/interfaces/authed-user.interface";
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { Request } from "express";
 
 @Injectable()
-export class IsAuthed implements CanActivate {
+export class RefreshTokenGuard implements CanActivate {
     constructor(
         private readonly tokenService: JwtService,
         private readonly configService: ConfigService
@@ -14,7 +13,7 @@ export class IsAuthed implements CanActivate {
     async canActivate(context: ExecutionContext): Promise<boolean> {
 
         const request: Request = context.switchToHttp().getRequest()
-        const token = this.extractTokenFromHeader(request)
+        const token = this.extractRefreshTokenFromCookies(request)
         if (!token) {
             throw new UnauthorizedException({
                 message: "Your access token is missing",
@@ -24,29 +23,18 @@ export class IsAuthed implements CanActivate {
         }
 
         try {
-            const { userId, username, role, sessionId,exp } = await this.tokenService.verifyAsync(
+            const { sessionId } = await this.tokenService.verifyAsync(
                 token,
                 {
-                    secret: this.configService.get("JWT_SECRET")
+                    secret: this.configService.get("JWT_REFRESH_TOKEN_SECRET")
                 }
             )
-
-            if (!userId) {
-                throw new UnauthorizedException()
-            }
-
-            const authedUser: AuthedUserReqType = {
-                userId,
-                username,
-                role,
-                sessionId
-            }
-            request.authedUser = authedUser
+            request.sessionId = sessionId
         }
         catch (error) {
             throw new UnauthorizedException({
                 ...error,
-                message: "Your access token is expired",
+                message: "Your refresh token is expired",
                 solution: "Sign in again or refresh your token",
                 from: "Auth Guard"
             })
@@ -55,10 +43,8 @@ export class IsAuthed implements CanActivate {
         return true
     }
 
-    private extractTokenFromHeader(request: Request): string | undefined {
-        const [type, token] = request.headers.authorization?.split(' ') ?? [];
-        return type === 'Bearer' ? token : undefined;
+    private extractRefreshTokenFromCookies(request: Request): string | undefined {
+        const refreshToken = request.cookies["refreshToken"]
+        return refreshToken
     }
-
-
 }

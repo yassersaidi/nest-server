@@ -4,7 +4,8 @@ import { Request } from 'express';
 declare global {
   namespace Express {
     interface Request {
-      authedUser: AuthedUserReqType
+      authedUser: AuthedUserReqType,
+      sessionId: string
     }
   }
 }

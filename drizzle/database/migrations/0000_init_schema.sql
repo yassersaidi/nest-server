@@ -1,3 +1,6 @@
+CREATE TYPE verification_code_type AS ENUM ('email', 'password_reset', 'phone_number');
+--> statement-breakpoint
+
 CREATE TABLE IF NOT EXISTS "admin" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,

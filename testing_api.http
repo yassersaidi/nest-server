@@ -21,6 +21,20 @@ Content-Type: application/json
     "password": "testing2024@"
 }
 
+### Logout user
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### update refresh token
+POST {{baseUrl}}/auth/rt
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+Cookie: refreshToken=
+
+
+
 
 ### Get the current authed user by accessToken
 GET {{baseUrl}}/auth/me
@@ -83,21 +97,6 @@ Content-Type: application/json
     "code":"968707",
     "password":"testing2024"
 }
-
-### Logout user
-POST {{baseUrl}}/auth/logout
-Content-Type: application/json
-Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
-Cookie: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJlNTQ2ODVjYi1lYzRiLTRmMzYtYjVjMC0zMzRhZmVlYTBhOTMiLCJ1c2VybmFtZSI6ImhlbGxvdjc3dmN2Iiwicm9sZSI6IlVTRVIiLCJpYXQiOjE3MzExMDUxNDksImV4cCI6MTczMTEwNTc0OX0.Iua7xCLFKk6NMeWHBqQkkMStAw106Uby6jU81YhWiCU; Max-Age=604800; Path=/; Expires=Fri, 15 Nov 2024 22:13:02 GMT; HttpOnly; Secure; SameSite=Lax
-
-
-
-
-### update refresh token
-POST {{baseUrl}}/auth/rt
-Content-Type: application/json
-Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
-Cookie: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhOTQxNTMwZS1jMzQ4LTRlZDgtYTMwZi1jOGYwZmI2YmJlZTUiLCJ1c2VybmFtZSI6ImhlbGxvdnZjdiIsInJvbGUiOiJVU0VSIiwiaWF0IjoxNzMxMTAzOTgyLCJleHAiOjE3MzExMDQ1ODJ9.QFOoCBGCnzmll7gsj-_CD74Ud6wL9wK5j1sM3gKQxo8; Max-Age=604800; Path=/; Expires=Fri, 15 Nov 2024 22:13:02 GMT; HttpOnly; Secure; SameSite=Lax
 
 
 ### Delete authed User

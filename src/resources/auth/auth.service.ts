@@ -1,14 +1,13 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { loginDto } from './dto/login.dto';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import UAParser from 'ua-parser-js';
 import { DefaultHttpException } from '../common/errors/error/custom-error.error';
 import { PROVIDERS } from '../common/constants';
 import { SessionService } from './sessions/session.service';
 import { VerificationCodeService } from './verification-code/verification-code.service';
 import { LoginUserType } from './interfaces/login-user.interface';
+import { UserRoles } from '../common/enums/user-roles.enum';
 
 const bcrypt = require('bcryptjs');
 
@@ -20,8 +19,6 @@ export class AuthService {
     @Inject(PROVIDERS.USER_AGENT_PARSER) private readonly uap: UAParser,
     private readonly sessionService: SessionService,
     private readonly verificationCodeService: VerificationCodeService,
-    private readonly configService: ConfigService,
-    private readonly jwtService: JwtService,
   ) { }
 
   async login(user: LoginUserType, loginDto: loginDto, ip: string | string[], deviceInfo: string) {
@@ -41,36 +38,28 @@ export class AuthService {
 
     this.logger.log(`User ${user.id} logged in successfully.`);
 
-    const accessToken = this.jwtService.sign(
-      { userId: user.id, username: user.username, role: user.role },
-      {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      }
-    );
+    const sessionId = await this.sessionService.createSession(user.id, ip.toString(), deviceInfo);
+    
+    const newAccessToken = this.sessionService.generateAccessToken({
+        userId: user.id,
+        role: user.role as UserRoles,
+        username: user.username,
+        sessionId
+    })
 
-    const refreshToken = this.jwtService.sign(
-      { userId: user.id, username: user.username, role: user.role },
-      {
-        secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
-        expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN'),
-      },
-    );
-
-    await this.sessionService.createSession(user.id, refreshToken, ip.toString(), deviceInfo);
-
+    const newRefreshToken = this.sessionService.generateRefreshToken(sessionId)   
     return {
-      accessToken,
-      refreshToken,
+      accessToken:newAccessToken,
+      refreshToken:newRefreshToken,
       userId: user.id
     };
   }
 
-  async logout(refreshToken: string, res: Response) {
-    this.logger.log('Attempting to log out user with refresh token: ' + refreshToken);
-    const session = await this.sessionService.findSessionByRefreshToken(refreshToken);
-    if (session.length === 0) {
-      this.logger.warn(`No session found for refresh token: ${refreshToken}`);
+  async logout(sessionId: string) {
+    this.logger.log('Attempting to log out user with session id: ' + sessionId);
+    const session = await this.sessionService.findSessionById(sessionId);
+    if (!session) {
+      this.logger.warn(`No session found for id: ${sessionId}`);
       throw new DefaultHttpException(
         "Session not found or already logged out",
         "Ensure you are logged in before attempting to log out.",
@@ -79,21 +68,8 @@ export class AuthService {
       );
     }
 
-    await this.sessionService.deleteSessionByRefreshToken(refreshToken);
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-    });
-
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-    });
-
-    this.logger.log(`User logged out successfully with refresh token: ${refreshToken}`);
-
+    await this.sessionService.deleteSessionById(sessionId);
+    this.logger.log(`User with id ${session.userId} logged out successfully`);
     return { message: 'Logout successful' };
   }
 
@@ -130,9 +106,9 @@ export class AuthService {
     return { hashedPassword };
   }
 
-  async refreshToken(refreshToken: string, ip: string | string[], deviceInfo: string) {
-    this.logger.log(`Refreshing token for refresh token: ${refreshToken}`);
-    return this.sessionService.refreshToken(refreshToken, ip.toString(), deviceInfo);
+  async refreshToken(sessionId: string) {
+    this.logger.log(`Refreshing token for session id: ${sessionId}`);
+    return this.sessionService.refreshToken(sessionId);
   }
 
   async getUserDeviceInfo(req: Request) {
