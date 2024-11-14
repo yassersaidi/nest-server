@@ -1,23 +1,7 @@
-type AuthErrorResponse = {
-  message: string[];
-  url: string;
-};
-
-type AuthErrorCategories<T extends string = string> = {
-  [K in T]: AuthErrorResponse;
-};
-
-type AuthErrorStructure = {
-  register: AuthErrorCategories;
-  login: AuthErrorCategories;
-  verifyEmail: AuthErrorCategories;
-  verifyEmailCode: AuthErrorCategories;
-};
-
-export const authResponseErrors: AuthErrorStructure = {
-  register: {
-    multipleErrors: {
-      message: [
+{
+  "register": {
+    "multipleErrors": {
+      "message": [
         "email must be an email",
         "email should not be empty",
         "password must be longer than or equal to 8 characters",
@@ -30,77 +14,89 @@ export const authResponseErrors: AuthErrorStructure = {
         "phoneNumber must be a string",
         "phoneNumber should not be empty"
       ],
-      url: "/api/v1/auth/register"
+      "url": "/api/v1/auth/register"
     },
-    missingEmail: {
-      message: [
+    "missingEmail": {
+      "message": [
         "email must be an email",
         "email should not be empty"
       ],
-      url: "/api/v1/auth/register"
+      "url": "/api/v1/auth/register"
     },
-    shortUsername: {
-      message: [
+    "shortUsername": {
+      "message": [
         "username must be longer than or equal to 6 characters"
       ],
-      url: "/api/v1/auth/register"
+      "url": "/api/v1/auth/register"
     },
-    shortPassword: {
-      message: [
+    "shortPassword": {
+      "message": [
         "password must be longer than or equal to 8 characters"
       ],
-      url: "/api/v1/auth/register"
+      "url": "/api/v1/auth/register"
     },
-    invalidPhoneNumber: {
-      message: [
+    "invalidPhoneNumber": {
+      "message": [
         "phoneNumber must be longer than or equal to 10 characters"
       ],
-      url: "/api/v1/auth/register"
+      "url": "/api/v1/auth/register"
     }
   },
-  login: {
-    multipleErrors: {
-      message: [
+  "login": {
+    "multipleErrors": {
+      "message": [
         "email must be an email",
         "email should not be empty",
         "password must be longer than or equal to 8 characters",
         "password must be a string",
         "password should not be empty"
       ],
-      url: "/api/v1/auth/login"
+      "url": "/api/v1/auth/login"
     },
-    emailNotAnEmail: {
-      message: [
+    "emailNotAnEmail": {
+      "message": [
         "email must be an email"
       ],
-      url: "/api/v1/auth/login"
+      "url": "/api/v1/auth/login"
     },
-    passwordNotFound: {
-      message: [
+    "passwordNotFound": {
+      "message": [
         "password must be longer than or equal to 8 characters",
         "password must be a string",
         "password should not be empty"
       ],
-      url: "/api/v1/auth/login"
+      "url": "/api/v1/auth/login"
     }
   },
-  verifyEmail: {
-    invalidEmail: {
-      message: [
+  "verifyEmail": {
+    "invalidEmail": {
+      "message": [
         "email must be an email",
         "email should not be empty"
       ],
-      url: "/api/v1/auth/verify-email"
+      "url": "/api/v1/auth/verify-email"
     }
   },
-  verifyEmailCode: {
-    multipleErrors: {
-      message: [
+  "verifyEmailCode": {
+    "multipleErrors": {
+      "message": [
         "email must be an email",
         "code must be longer than or equal to 6 characters",
         "code must be a string"
       ],
-      url: "/api/v1/auth/verify-email-code"
+      "url": "/api/v1/auth/verify-email-code"
+    }
+  },
+  "resetPassword": {
+    "multipleErrors": {
+      "message": [
+        "email must be an email",
+        "code must be longer than or equal to 6 characters",
+        "code must be a string",
+        "password must be longer than or equal to 8 characters",
+        "password must be a string"
+      ],
+      "url": "/api/v1/auth/reset-password"
     }
   }
-} as const;
+}

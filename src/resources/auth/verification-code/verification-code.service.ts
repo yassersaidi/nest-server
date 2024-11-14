@@ -113,7 +113,7 @@ export class VerificationCodeService {
     }
 
     async checkExistingCode(userId: string, type: VerificationCodeType) {
-        this.logger.log(`Checking for existing verification code for user ${userId} of type ${type}`);
+        this.logger.log(`Checking for existing code for user ${userId} of type ${type}`);
         const existingCode = await this.db
             .select()
             .from(db_schema.VerificationCode)
@@ -124,10 +124,10 @@ export class VerificationCodeService {
             ));
 
         if (existingCode.length > 0) {
-            this.logger.warn(`A verification code for user ${userId} of type ${type} already exists`);
+            this.logger.warn(`A code for user ${userId} of type ${type} already exists`);
             let updatedType = type.charAt(0).toUpperCase() + type.slice(1);
             throw new DefaultHttpException(
-                `A verification code has already been sent.`,
+                `A code has already been sent.`,
                 "Please check your email or phone.",
                 `${updatedType} Verification Service`,
                 HttpStatus.BAD_REQUEST
@@ -160,10 +160,12 @@ export class VerificationCodeService {
 
         if (existingCode.length === 0) {
             this.logger.error(`Invalid or expired verification code for user ${userId} of type ${type}`);
+            let updatedType = type.charAt(0).toUpperCase() + type.slice(1);
+
             throw new DefaultHttpException(
                 "Invalid or expired code.",
-                `Please request a new ${type} code.`,
-                `${type} Verification Service`,
+                `Please request a new ${updatedType} code.`,
+                `${updatedType} Verification Service`,
                 HttpStatus.BAD_REQUEST
             );
         }

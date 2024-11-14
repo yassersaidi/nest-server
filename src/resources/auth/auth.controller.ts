@@ -63,13 +63,13 @@ export class AuthController {
       ipAddress,
       deviceInfo);
 
-      const accessTokenMaxAge = parseInt(this.configService.get("ACCESS_TOKEN_COOKIE_MAX_AGE"));
-      const refreshTokenMaxAge = parseInt(this.configService.get("REFRESH_TOKEN_COOKIE_MAX_AGE"));
-      
-      res.cookie('accessToken', accessToken, this.generatorService.generateCookieOptions(accessTokenMaxAge));
-      res.cookie('refreshToken', refreshToken, this.generatorService.generateCookieOptions(refreshTokenMaxAge));
+    const accessTokenMaxAge = parseInt(this.configService.get("ACCESS_TOKEN_COOKIE_MAX_AGE"));
+    const refreshTokenMaxAge = parseInt(this.configService.get("REFRESH_TOKEN_COOKIE_MAX_AGE"));
 
-    return { message: 'Login successful', userId, accessToken };
+    res.cookie('accessToken', accessToken, this.generatorService.generateCookieOptions(accessTokenMaxAge));
+    res.cookie('refreshToken', refreshToken, this.generatorService.generateCookieOptions(refreshTokenMaxAge));
+
+    return res.json({ message: 'Login successful', userId, accessToken })
   }
 
   @UseGuards(IsAuthed)
@@ -112,18 +112,21 @@ export class AuthController {
   @UseGuards(IsAuthed)
   @Delete("/me")
   async deleteMe(@AuthedUserReq() user: AuthedUserReqType, @Res() res: Response) {
+    await this.userService.findById(user.userId);
     const { message } = await this.userService.deleteUser(user.userId)
-
-    return message
+    res.clearCookie('accessToken', this.generatorService.generateCookieOptions());
+    res.clearCookie('refreshToken', this.generatorService.generateCookieOptions());
+    return res.json({ message })
   }
 
   @UseGuards(IsAuthed)
+  @HttpCode(HttpStatus.OK)
   @Post('/logout')
   async logout(@AuthedUserReq() user: AuthedUserReqType, @Res() res: Response) {
     const sessionId = user?.sessionId
     if (!sessionId) {
       throw new DefaultHttpException(
-        "Invalid refresh token",
+        "Invalid access token",
         "Please login again",
         "Tokens Service",
         HttpStatus.UNAUTHORIZED
@@ -134,7 +137,7 @@ export class AuthController {
     res.clearCookie('accessToken', this.generatorService.generateCookieOptions());
     res.clearCookie('refreshToken', this.generatorService.generateCookieOptions());
 
-    return message
+    return res.json({ message })
   }
 
   @HttpCode(HttpStatus.OK)
@@ -211,7 +214,7 @@ export class AuthController {
 
     const { message } = await this.authService.forgotPassword(user.id, email);
 
-    return { message }
+    return { message, userId: user.id }
   }
 
   @HttpCode(HttpStatus.OK)
@@ -222,7 +225,7 @@ export class AuthController {
     const { hashedPassword } = await this.authService.resetPassword(user.id, code, password);
     await this.userService.updateUser(user.id, { password: hashedPassword });
 
-    return { message: 'Password successfully reset', userId: user.id };
+    return { message: 'Password successfully reset.', userId: user.id };
   }
 
   @UseGuards(RefreshTokenGuard)
@@ -232,9 +235,9 @@ export class AuthController {
     const sessionId = req.sessionId;
     const { userId, accessToken, newRefreshToken } = await this.authService.refreshToken(sessionId);
 
-    const accessTokenMaxAge = parseInt(this.configService.get("JWT_EXPIRES_IN"));
-    const refreshTokenMaxAge = parseInt(this.configService.get("JWT_REFRESH_TOKEN_EXPIRES_IN"));
-    
+    const accessTokenMaxAge = parseInt(this.configService.get("ACCESS_TOKEN_COOKIE_MAX_AGE"));
+    const refreshTokenMaxAge = parseInt(this.configService.get("REFRESH_TOKEN_COOKIE_MAX_AGE"));
+
     res.cookie('accessToken', accessToken, this.generatorService.generateCookieOptions(accessTokenMaxAge));
     res.cookie('refreshToken', newRefreshToken, this.generatorService.generateCookieOptions(refreshTokenMaxAge));
 

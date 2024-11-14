@@ -24,7 +24,7 @@ export class IsAuthed implements CanActivate {
         }
 
         try {
-            const { userId, username, role, sessionId,exp } = await this.tokenService.verifyAsync(
+            const { userId, username, role, sessionId } = await this.tokenService.verifyAsync(
                 token,
                 {
                     secret: this.configService.get("JWT_SECRET")

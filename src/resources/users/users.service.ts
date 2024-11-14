@@ -70,78 +70,138 @@ export class UsersService {
 
   async findUser({ email, username, phoneNumber }: UserVerificationFields) {
     this.logger.log('Searching for user...');
-    const conditions = [];
-    if (email) conditions.push(eq(db_schema.User.email, email));
-    if (username) conditions.push(eq(db_schema.User.username, username));
-    if (phoneNumber) conditions.push(eq(db_schema.User.phoneNumber, phoneNumber));
 
-    const users = await this.db.select().from(db_schema.User).where(or(...conditions)).limit(1);
+    try {
+      const conditions = [];
+      if (email) conditions.push(eq(db_schema.User.email, email));
+      if (username) conditions.push(eq(db_schema.User.username, username));
+      if (phoneNumber) conditions.push(eq(db_schema.User.phoneNumber, phoneNumber));
 
-    if (users.length === 0) {
-      let notFoundMessage = 'User';
-      if (email) notFoundMessage += ` with email: ${email} not found.`;
-      if (username) notFoundMessage += ` with username: ${username} not found.`;
-      if (phoneNumber) notFoundMessage += ` with phone number: ${phoneNumber} not found.`;
+      if (conditions.length === 0) {
+        throw new DefaultHttpException(
+          'No search criteria provided',
+          'Provide at least one search field (email, username, or phone number)',
+          'Users Service',
+          HttpStatus.BAD_REQUEST
+        );
+      }
 
-      this.logger.warn(notFoundMessage);
+      const users = await this.db
+        .select()
+        .from(db_schema.User)
+        .where(or(...conditions))
+        .limit(1);
+
+      if (users.length === 0) {
+        let notFoundMessage = 'User';
+        if (email) notFoundMessage += ` with email: ${email} not found.`;
+        if (username) notFoundMessage += ` with username: ${username} not found.`;
+        if (phoneNumber) notFoundMessage += ` with phone number: ${phoneNumber} not found.`;
+
+        this.logger.warn(notFoundMessage);
+        throw new DefaultHttpException(
+          notFoundMessage,
+          'Check your information or create an account',
+          'Users Service',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      this.logger.log('User found');
+      return users[0];
+
+    } catch (error) {
+      this.logger.error('Error finding user:', error);
+
+      if (error instanceof DefaultHttpException) {
+        throw error;
+      }
+
       throw new DefaultHttpException(
-        notFoundMessage,
-        'Check your information or create an account',
+        'Failed to find user',
+        'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-
-    this.logger.log('User found');
-    return users[0];
   }
 
   async findById(id: string) {
-    this.logger.log(`Searching for user with ID: ${id}`);
-    const users = await this.db.select().from(db_schema.User).where(eq(db_schema.User.id, id)).limit(1);
-    if (users.length === 0) {
-      this.logger.warn(`User with id: ${id} not found`);
+    try {
+      this.logger.log(`Searching for user with ID: ${id}`);
+      const users = await this.db.select().from(db_schema.User).where(eq(db_schema.User.id, id)).limit(1);
+      if (users.length === 0) {
+        this.logger.warn(`User with id: ${id} not found`);
+        throw new DefaultHttpException(
+          `User with id: ${id} not found`,
+          'Check the id or create an account',
+          'Users Service',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      this.logger.log('User found');
+      return users[0];
+    } catch (error) {
+      this.logger.error('Error finding user:', error);
+
+      if (error instanceof DefaultHttpException) {
+        throw error;
+      }
+
       throw new DefaultHttpException(
-        `User with id: ${id} not found`,
-        'Check the id or create an account',
+        'Failed to find user',
+        'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-
-    this.logger.log('User found');
-    return users[0];
   }
 
   async getMe(id: string) {
-    this.logger.log(`Fetching user details for ID: ${id}`);
-    const user = await this.db
-      .select({
-        id: db_schema.User.id,
-        email: db_schema.User.email,
-        phoneNumber: db_schema.User.phoneNumber,
-        username: db_schema.User.username,
-        profilePicture: db_schema.User.profilePicture,
-        emailVerified: db_schema.User.isEmailVerified,
-        phoneNumberVerified: db_schema.User.isPhoneNumberVerified,
-      })
-      .from(db_schema.User)
-      .where(eq(db_schema.User.id, id))
-      .limit(1)
-      .execute();
+    try {
+      this.logger.log(`Fetching user details for ID: ${id}`);
+      const user = await this.db
+        .select({
+          id: db_schema.User.id,
+          email: db_schema.User.email,
+          phoneNumber: db_schema.User.phoneNumber,
+          username: db_schema.User.username,
+          profilePicture: db_schema.User.profilePicture,
+          emailVerified: db_schema.User.isEmailVerified,
+          phoneNumberVerified: db_schema.User.isPhoneNumberVerified,
+        })
+        .from(db_schema.User)
+        .where(eq(db_schema.User.id, id))
+        .limit(1)
+        .execute();
 
-    if (user.length === 0) {
-      this.logger.warn(`User with id: ${id} not found`);
+      if (user.length === 0) {
+        this.logger.warn(`User with id: ${id} not found`);
+        throw new DefaultHttpException(
+          `User with id: ${id} not found`,
+          'Check the id or create an account',
+          'Users Service',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      this.logger.log('User details fetched');
+      return user[0];
+    } catch (error) {
+      this.logger.error('Error finding user:', error);
+
+      if (error instanceof DefaultHttpException) {
+        throw error;
+      }
+
       throw new DefaultHttpException(
-        `User with id: ${id} not found`,
-        'Check the id or create an account',
+        'Failed to find user',
+        'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-
-    this.logger.log('User details fetched');
-    return user[0];
   }
 
   async getAll(getUsersQuery: GetUsersQueryDto) {
@@ -188,23 +248,11 @@ export class UsersService {
 
   async deleteUser(userId: string) {
     this.logger.log(`Deleting user with ID: ${userId}`);
-    const deletedUsers = await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId)).returning();
-
-    if (deletedUsers.length === 0) {
-      this.logger.warn(`User with ID: ${userId} not found for deletion`);
-      throw new DefaultHttpException(
-        `User with id: ${userId} not found`,
-        'Check the id or create an account',
-        'Users Service',
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    this.logger.log('User deleted successfully');
+    await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId))
     return { message: 'Your account has been deleted' };
   }
 
-  async isNotAdmin(userId:string) {
+  async isNotAdmin(userId: string) {
     this.logger.log(`Checking if user ${userId} is not an admin`);
     const admins = await this.db.select().from(db_schema.User).where(and(
       eq(db_schema.User.id, userId),

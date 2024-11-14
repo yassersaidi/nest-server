@@ -16,9 +16,9 @@ export class RefreshTokenGuard implements CanActivate {
         const token = this.extractRefreshTokenFromCookies(request)
         if (!token) {
             throw new UnauthorizedException({
-                message: "Your access token is missing",
-                solution: "Provide your access token in authorization header.",
-                from: "Auth Guard"
+                message: "Your refresh token is missing",
+                solution: "Provide your refresh token in cookies.",
+                from: "Refresh Token Guard"
             })
         }
 
@@ -36,7 +36,7 @@ export class RefreshTokenGuard implements CanActivate {
                 ...error,
                 message: "Your refresh token is expired",
                 solution: "Sign in again or refresh your token",
-                from: "Auth Guard"
+                from: "Refresh Token Guard"
             })
         }
 

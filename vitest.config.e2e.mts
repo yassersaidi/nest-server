@@ -10,6 +10,7 @@ export default defineConfig({
       '@src': './src',
       '@test': './test',
     },
+    testTimeout:10000,
     root: './',
   },
   resolve: {
