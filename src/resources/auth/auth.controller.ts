@@ -22,6 +22,7 @@ import { AuthedUserReqType } from './interfaces/authed-user.interface';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { ConfigService } from '@nestjs/config';
 import { GeneratorService } from '../common/generators/generator.service';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @UseFilters(AuthFilter)
 @Controller('auth')
@@ -73,6 +74,7 @@ export class AuthController {
   }
 
   @UseGuards(IsAuthed)
+  @ApiBearerAuth("AuthGuard")
   @Get("/me")
   async getMe(@AuthedUserReq() user: AuthedUserReqType) {
     const cachedUserData = await this.cacheManager.get(user.userId)
@@ -85,6 +87,7 @@ export class AuthController {
   }
 
   @UseGuards(IsAuthed)
+  @ApiBearerAuth("AuthGuard")
   @Patch("/uploads/profile")
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({
@@ -110,6 +113,7 @@ export class AuthController {
 
   @HttpCode(HttpStatus.OK)
   @UseGuards(IsAuthed)
+  @ApiBearerAuth("AuthGuard")
   @Delete("/me")
   async deleteMe(@AuthedUserReq() user: AuthedUserReqType, @Res() res: Response) {
     await this.userService.findById(user.userId);
@@ -120,6 +124,7 @@ export class AuthController {
   }
 
   @UseGuards(IsAuthed)
+  @ApiBearerAuth("AuthGuard")
   @HttpCode(HttpStatus.OK)
   @Post('/logout')
   async logout(@AuthedUserReq() user: AuthedUserReqType, @Res() res: Response) {
@@ -141,6 +146,7 @@ export class AuthController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("AuthGuard")
   @UseGuards(IsAuthed)
   @Post('/verify-email')
   async sendVerificationCodeEmail(@Body() verifyEmailDto: VerifyEmailDto) {
@@ -155,6 +161,7 @@ export class AuthController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("AuthGuard")
   @UseGuards(IsAuthed)
   @Post('/verify-email-code')
   async verifyEmailCode(@Body() verifyCodeDto: VerifyCodeDto) {
@@ -174,6 +181,7 @@ export class AuthController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("AuthGuard")
   @UseGuards(IsAuthed)
   @Post('/verify-phone-number')
   async sendVerificationCodePhone(@Body() verifyPhoneNumberDto: VerifyPhoneNumberDto) {
@@ -187,6 +195,7 @@ export class AuthController {
   }
 
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth("AuthGuard")
   @UseGuards(IsAuthed)
   @Post('/verify-phone-code')
   async verifyPhoneNumberCode(@Body() verifyPhoneNumberCodeDto: VerifyPhoneNumberCodeDto) {
@@ -245,6 +254,7 @@ export class AuthController {
   }
 
   @UseGuards(IsAuthed)
+  @ApiBearerAuth("AuthGuard")
   @HttpCode(HttpStatus.OK)
   @Get("/sessions")
   async getSessions(@AuthedUserReq() user: AuthedUserReqType) {

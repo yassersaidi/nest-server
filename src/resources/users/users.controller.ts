@@ -13,8 +13,10 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { UserInterceptor } from './interceptors/users.interceptor';
 import { GetUsersQueryDto } from './dto/get-users.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @UseGuards(IsAuthed, UserRolesGuard)
+@ApiBearerAuth("AuthGuard")
 @UseInterceptors(UserInterceptor)
 @Controller('users')
 export class UsersController {
@@ -37,7 +39,6 @@ export class UsersController {
   }
 
 
-  @UseGuards(IsAuthed)
   @UseInterceptors(UserInterceptor)
   @Get("/search")
   searchInUsers(@Query() searchUsersQuery: SearchUsersQueryDto) {
