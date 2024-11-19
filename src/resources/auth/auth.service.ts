@@ -1,263 +1,154 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { User } from '../users/entities/user.entity';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { loginDto } from './dto/login.dto';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Session } from '../users/entities/session.entity';
-import { Repository, MoreThan, LessThan } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import { Response } from 'express';
-import { VerificationCode } from '../users/entities/verification.code.entity';
-import { generateNumericCode } from 'src/utils/generateCode';
-import { sendVerificationCode } from 'src/utils/sendEmails';
-import { UsersService } from '../users/users.service';
-import { Admin } from '../users/entities/admin.entity';
+import { Request } from 'express';
+import UAParser from 'ua-parser-js';
+import { DefaultHttpException } from '../common/errors/error/custom-error.error';
+import { PROVIDERS } from '../common/constants';
+import { SessionService } from './sessions/session.service';
+import { VerificationCodeService } from './verification-code/verification-code.service';
+import { LoginUserType } from './interfaces/login-user.interface';
+import { UserRoles } from '../common/enums/user-roles.enum';
 
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
-    @InjectRepository(Admin) private readonly admin: Repository<Admin>,
-    @InjectRepository(Session) private readonly session: Repository<Session>,
-    @InjectRepository(VerificationCode) private readonly verificationCode: Repository<VerificationCode>,
-    private readonly tokenService: JwtService,
-    private readonly configService: ConfigService,
-    private readonly userService: UsersService,
+    @Inject(PROVIDERS.USER_AGENT_PARSER) private readonly uap: UAParser,
+    private readonly sessionService: SessionService,
+    private readonly verificationCodeService: VerificationCodeService,
+  ) {}
 
-  ) { }
+  async login(
+    user: LoginUserType,
+    loginDto: loginDto,
+    ip: string | string[],
+    deviceInfo: string,
+  ) {
+    this.logger.log('Attempting to login user with email: ' + loginDto.email);
 
-
-  async login(user: User, loginDto: loginDto) {
-
-    const isValid = await bcrypt.compare(loginDto.password, user?.password)
+    const isValid = await bcrypt.compare(loginDto.password, user?.password);
 
     if (!isValid) {
-      throw new BadRequestException("Invalid credentials")
+      this.logger.warn(
+        `Invalid login attempt for user with email: ${loginDto.email}`,
+      );
+      throw new DefaultHttpException(
+        'Invalid credentials',
+        'Enter valid email or password',
+        'Login Service',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const accessToken = this.tokenService.sign(
-      { userId: user.id },
-      {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      },
+    this.logger.log(`User ${user.id} logged in successfully.`);
+
+    const sessionId = await this.sessionService.createSession(
+      user.id,
+      ip.toString(),
+      deviceInfo,
     );
 
-    const refreshToken = this.tokenService.sign(
-      { userId: user.id },
-      {
-        secret: this.configService.get('JWT_REFRESH_TOKEN_SECRET'),
-        expiresIn: this.configService.get('JWT_REFRESH_TOKEN_EXPIRES_IN'),
-      },
-    );
-
-    const sessionData = this.session.create({
-      user,
-      refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    const newAccessToken = this.sessionService.generateAccessToken({
+      userId: user.id,
+      role: user.role as UserRoles,
+      username: user.username,
+      sessionId,
     });
 
-    await this.session.save(sessionData);
-
-    const now = new Date();
-    await this.session.delete({ expiresAt: LessThan(now) });
-
+    const newRefreshToken = this.sessionService.generateRefreshToken(sessionId);
     return {
-      accessToken,
-      refreshToken,
-      userId: user.id
-    }
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      userId: user.id,
+    };
   }
 
-  async logout(refreshToken: string, res: Response) {
-
-    const session = await this.session.findOne({ where: { refreshToken } });
-
+  async logout(sessionId: string) {
+    this.logger.log('Attempting to log out user with session id: ' + sessionId);
+    const session = await this.sessionService.findSessionById(sessionId);
     if (!session) {
-      throw new UnauthorizedException('Session not found or already logged out');
+      this.logger.warn(`No session found for id: ${sessionId}`);
+      throw new DefaultHttpException(
+        'Session not found or already logged out',
+        'Ensure you are logged in before attempting to log out.',
+        'Logout',
+        HttpStatus.UNAUTHORIZED,
+      );
     }
 
-    await this.session.delete({ refreshToken });
-
-    res.clearCookie('accessToken', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-    });
-
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict',
-    });
-
+    await this.sessionService.deleteSessionById(sessionId);
+    this.logger.log(`User with id ${session.userId} logged out successfully`);
     return { message: 'Logout successful' };
   }
 
-
-  async verifyEmail(email: string, user: User) {
-
-    const existingCode = await this.verificationCode.findOne({
-      where: {
-        user: { id: user.id },
-        expiresAt: MoreThan(new Date()),
-      },
-    });
-
-    if (existingCode) {
-      return { message: 'A verification code has already been sent. Please check your email.' };
-    }
-    const code = generateNumericCode(6);
-
-    const isSent = await sendVerificationCode(email, code, "Your email verification code", "Use this code to confirm your email");
-
-    if (!isSent) {
-      throw new BadRequestException("Can't send the verification code, try again!");
-    }
-
-    const verificationCode = this.verificationCode.create({
-      user,
-      code,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000)
-    });
-
-    await this.verificationCode.save(verificationCode);
-
-    const now = new Date();
-    await this.verificationCode.delete({ expiresAt: LessThan(now) });
-
-    return { message: 'Verification code sent!' };
-
+  async verifyEmail(userId: string, email: string) {
+    this.logger.log(
+      `Sending email verification code to user ${userId} at email: ${email}`,
+    );
+    return this.verificationCodeService.sendEmailVerificationCode(
+      userId,
+      email,
+    );
   }
 
-  async verifyCode(user: User, code: string) {
-
-    const userVerificationCode = await this.verificationCode.findOne({
-      where: {
-        user: { id: user.id },
-        code: code,
-        expiresAt: MoreThan(new Date()),
-      },
-    });
-
-    if (!userVerificationCode) {
-      return false;
-    }
-
-    await this.verificationCode.delete({ id: userVerificationCode.id });
-
-    return true;
+  async verifyEmailCode(userId: string, code: string) {
+    this.logger.log(`Verifying email code for user ${userId}`);
+    return this.verificationCodeService.verifyEmailCode(userId, code);
   }
 
-  async resetPassword(user: User, email: string, code: string, newPassword: string) {
+  async verifyPhoneNumber(userId: string, phoneNumber: string) {
+    this.logger.log(
+      `Sending phone verification code to user ${userId} at phone number: ${phoneNumber}`,
+    );
+    return this.verificationCodeService.sendPhoneVerificationCode(
+      userId,
+      phoneNumber,
+    );
+  }
 
-    const resetCode = await this.verificationCode.findOne({
-      where: {
-        user: { id: user.id },
-        code: code,
-        expiresAt: MoreThan(new Date()),
-      },
-    });
+  async verifyPhoneNumberCode(userId: string, code: string) {
+    this.logger.log(`Verifying phone code for user ${userId}`);
+    return this.verificationCodeService.verifyPhoneCode(userId, code);
+  }
 
-    if (!resetCode) {
-      throw new BadRequestException('Invalid or expired reset code.');
-    }
+  async forgotPassword(userId: string, email: string) {
+    this.logger.log(
+      `Sending password reset code to user ${userId} at email: ${email}`,
+    );
+    return this.verificationCodeService.sendPasswordResetCode(userId, email);
+  }
 
-    const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.PASSWORD_SALT || '13'));
-    await this.verificationCode.delete({ id: resetCode.id });
+  async resetPassword(userId: string, code: string, newPassword: string) {
+    this.logger.log(`Resetting password for user ${userId}`);
+    await this.verificationCodeService.verifyPasswordResetCode(userId, code);
 
-
+    const hashedPassword = await bcrypt.hash(
+      newPassword,
+      parseInt(process.env.PASSWORD_SALT || '13'),
+    );
     return { hashedPassword };
   }
 
-
-  async forgotPassword(user: User, email: string) {
-
-    const existingResetCode = await this.verificationCode.findOne({
-      where: {
-        user: { id: user.id },
-        expiresAt: MoreThan(new Date()),
-      },
-    });
-
-    if (existingResetCode) {
-      return { message: 'A verification code has already been sent. Please check your email.' };
-    }
-
-    const resetCode = generateNumericCode(6);
-
-    const isSent = await sendVerificationCode(email, resetCode, "Your password verification code", "Use this code to reset your password");
-    if (!isSent) {
-      throw new BadRequestException('Failed to send the reset code. Please try again.');
-    }
-
-    const verificationCode = this.verificationCode.create({
-      user,
-      code: resetCode,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000)
-    });
-
-    await this.verificationCode.save(verificationCode);
-
-    const now = new Date();
-    await this.verificationCode.delete({ expiresAt: LessThan(now) });
-
-    return { message: 'Password reset code sent!' };
+  async refreshToken(sessionId: string) {
+    this.logger.log(`Refreshing token for session id: ${sessionId}`);
+    return this.sessionService.refreshToken(sessionId);
   }
 
-  async refreshToken(refreshToken: string) {
-    const session = await this.session.findOne({ where: { refreshToken } });
-
-    if (!session) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-    const { userId } = await this.tokenService.verifyAsync(
-      refreshToken,
-      {
-        secret: this.configService.get("JWT_REFRESH_TOKEN_SECRET")
-      }
-    )
-
-    if (!userId) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-
-
-    const user = await this.userService.findById(userId)
-
-    if (!user) {
-      throw new BadRequestException('Invalid refresh token');
-    }
-
-    const accessToken = this.tokenService.sign(
-      { userId: user.id },
-      {
-        secret: this.configService.get('JWT_SECRET'),
-        expiresIn: this.configService.get('JWT_EXPIRES_IN'),
-      },
-    );
-
+  async getUserDeviceInfo(req: Request) {
+    const userAgent = this.uap.setUA(req.headers['user-agent']).getResult();
+    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const deviceInfo = `${userAgent.browser.name}${userAgent.browser.version} - ${userAgent.device.model} - ${userAgent.os.name}`;
     return {
-      accessToken,
-      userId: user.id
-    }
-
+      deviceInfo,
+      ipAddress,
+    };
   }
 
-  async addAdmin(user: User) {
-
-    const isAdmin = await this.admin.findOneBy({ email: user.email })
-    if (isAdmin) {
-      throw new BadRequestException("This user is already an admin")
-    }
-    const admin = this.admin.create({
-      user,
-      email: user.email
-    })  
-
-    await this.admin.save(admin)
+  async getSessions(userId: string) {
+    this.logger.log(`Fetching sessions for user ${userId}`);
+    return this.sessionService.getSessions(userId);
   }
-
 }

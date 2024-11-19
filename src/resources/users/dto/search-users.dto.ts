@@ -1,4 +1,13 @@
-import { IsEmail, IsOptional, IsString, MinLength, Validate, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from "class-validator"
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MinLength,
+  Validate,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+} from 'class-validator';
 
 @ValidatorConstraint({ name: 'emailOrUsername', async: false })
 class EmailOrUsernameValidator implements ValidatorConstraintInterface {
@@ -7,23 +16,21 @@ class EmailOrUsernameValidator implements ValidatorConstraintInterface {
     return !!(object.email || object.username);
   }
 
-  defaultMessage(args: ValidationArguments) {
+  defaultMessage() {
     return 'Either email or username must be provided!';
   }
 }
 
+export class SearchUsersQueryDto {
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
-export class SearchUsersQueryDto{
-    @IsOptional()
-    @IsEmail()
-    email?:string;
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  username?: string;
 
-    @IsOptional()	
-    @IsString()
-    @MinLength(6)
-    username?:string;
-
-    @Validate(EmailOrUsernameValidator)
-    isThereEmailOrUsername?: boolean
+  @Validate(EmailOrUsernameValidator)
+  isThereEmailOrUsername?: boolean;
 }
-

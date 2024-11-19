@@ -5,10 +5,10 @@ export class ResetPasswordDto {
   email: string;
 
   @IsString()
-  @Length(6, 6) 
+  @Length(6, 6)
   code: string;
 
   @IsString()
-  @MinLength(8) 
+  @MinLength(8)
   password: string;
 }

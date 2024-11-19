@@ -1,28 +1,48 @@
 import {
   Controller,
-  Get, Query, UseGuards
+  Get,
+  Inject,
+  Query,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { IsAuthed } from '@/guards/is.authed.guard';
-import { IsAdmin } from '@/guards/is.admin.guard';
+import { IsAuthed } from '@/resources/common/guards/is.authed.guard';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
+import { UserRolesGuard } from '@/resources/common/guards/user-roles.guard';
+import { AccessRoles } from '../common/decorators/user-roles.decorator';
+import { UserRoles } from '../common/enums/user-roles.enum';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { UserInterceptor } from './interceptors/users.interceptor';
+import { GetUsersQueryDto } from './dto/get-users.dto';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+@UseGuards(IsAuthed, UserRolesGuard)
+@ApiBearerAuth('AuthGuard')
+@UseInterceptors(UserInterceptor)
 @Controller('users')
-export class UsersController {  
-  constructor(private readonly usersService: UsersService) { }
+export class UsersController {
+  constructor(
+    private readonly usersService: UsersService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
-  @UseGuards(IsAuthed, IsAdmin)
+  @AccessRoles([UserRoles.ADMIN])
   @Get('/all')
-  getAllUsers() {
-    return this.usersService.getAll()
+  async getAllUsers(@Query() getUsersQuery: GetUsersQueryDto) {
+    const cachedUsers = await this.cacheManager.get('users');
+    if (cachedUsers) {
+      return cachedUsers;
+    }
+    const users = await this.usersService.getAll(getUsersQuery);
+    await this.cacheManager.set('users', users, 10000);
+    return users;
   }
 
-
-  @UseGuards(IsAuthed)
-  @Get("/search")
-  searchInUsers(@Query() searchUsersQuery: SearchUsersQueryDto){
-    return this.usersService.searchUsers(searchUsersQuery)
+  @UseInterceptors(UserInterceptor)
+  @Get('/search')
+  searchInUsers(@Query() searchUsersQuery: SearchUsersQueryDto) {
+    return this.usersService.searchUsers(searchUsersQuery);
   }
-
-
 }

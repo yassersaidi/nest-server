@@ -13,7 +13,8 @@ services:
       retries: 5
       start_period: 30s
     env_file:
-      - .env
+      - .env.production
+    restart: always
 
   pgadmin:
     container_name: prod_pgadmin
@@ -24,21 +25,37 @@ services:
       db:
         condition: service_healthy
     env_file:
-       - .env
+       - .env.production
+
+  redis:
+    container_name: prod_redis
+    image: redis/redis-stack-server:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_volume_data:/data
+    env_file:
+      - .env.production 
+    restart: always
 
   app:
     container_name: prod_app
-    build:
+    build:  
       context: .
       target: production 
     ports:
       - "3000:3000"
     depends_on:
+      redis:
+        condition: service_started
       db:
         condition: service_healthy
     env_file:
-      - .env      
-    command: /bin/sh -c "npm run typeorm migration:run -- -d dist/config/database.js && npm run start:prod"
+      - .env.production      
+    command: /bin/sh -c "npx drizzle-kit migrate --config=/app/dist/drizzle.config.js && node dist/src/main" 
+    restart: always
+
 
 volumes:
   prod_data:
+  redis_volume_data:

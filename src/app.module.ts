@@ -1,38 +1,57 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from './resources/users/users.module';
-import { AuthModule } from './resources/auth/auth.module';
-import { DatabaseModule } from './resources/database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { AuthModule } from './resources/auth/auth.module';
+import { DatabaseModule } from './resources/database/database.module';
+import { UsersModule } from './resources/users/users.module';
+// import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+// import { APP_GUARD } from '@nestjs/core';
+import KeyvRedis from '@keyv/redis';
+import { CacheModule, CacheStore } from '@nestjs/cache-manager';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import Keyv from 'keyv';
 import { join } from 'path';
+import { CommonModule } from './resources/common/common.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({
-    isGlobal: true
-  }),
-  ThrottlerModule.forRoot([{  
-    ttl: 60000,
-    limit: 10,
-  }]),
-  ServeStaticModule.forRoot({
-    rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
-    serveRoot: '/uploads/profile/'
-  }),
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+    // ThrottlerModule.forRoot([{
+    //   ttl: 60000,
+    //   limit: 100,
+    // }]),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + '/profile'),
+      serveRoot: '/uploads/profile/',
+    }),
+    CommonModule,
     UsersModule,
     AuthModule,
     DatabaseModule,
-    JwtModule.registerAsync({
-    inject: [ConfigService],
-    useFactory: async (configService: ConfigService) => ({}),
-  }),
-
+    CacheModule.registerAsync({
+      isGlobal: true,
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const redisUri = configService.get<string>('REDIS_URI');
+        const store = new Keyv({
+          store: new KeyvRedis(redisUri),
+          ttl: 20000,
+        });
+        return {
+          store: store as unknown as CacheStore,
+        };
+      },
+    }),
+    JwtModule,
   ],
-  providers: [{
-    provide: APP_GUARD,
-    useClass: ThrottlerGuard
-  }]
+  // TODO: Enable it after testing
+  // providers: [
+  //   {
+  //     provide: APP_GUARD,
+  //     useClass: ThrottlerGuard
+  //   }
+  // ]
 })
-export class AppModule { }
+export class AppModule {}

@@ -1,0 +1,122 @@
+@baseUrl =  http://localhost:3000/api/v1
+
+### Create an Account
+POST {{baseUrl}}/auth/register HTTP/1.1
+Content-Type: application/json
+    
+{
+        "email": "testing4@email.com",
+        "username": "test2027",
+        "password": "testing2024@",
+        "phoneNumber": "+211434574444710"
+}
+
+### Login an Account
+# @name loginAuth
+POST {{baseUrl}}/auth/login HTTP/1.1
+Content-Type: application/json
+
+{
+    "email": "testing4@email.com",
+    "password": "testing2024@"
+}
+
+### Logout user
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### update refresh token
+POST {{baseUrl}}/auth/rt
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+Cookie: refreshToken=
+
+
+
+
+### Get the current authed user by accessToken
+GET {{baseUrl}}/auth/me
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+### Testing timeout interceptor
+GET {{baseUrl}}/auth/
+
+
+### Send Email verfication code
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+{
+    "email":"testing4@email.com"
+}
+
+### Validate Email verfication code
+POST {{baseUrl}}/auth/verify-email-code
+Content-Type: application/json
+
+{
+    "email":"testing4@email.com",
+    "code":"027641"
+}
+
+### Send Email verfication code
+POST {{baseUrl}}/auth/verify-phone-number
+Content-Type: application/json
+
+{
+    "phoneNumber":"+21354754545"
+}
+
+### Validate Email verfication code
+POST {{baseUrl}}/auth/verify-phone-code
+Content-Type: application/json
+
+{
+    "phoneNumber":"+21354754545",
+    "code":"444444"
+}
+
+### Request reset password
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+    "email":"testing@email.com"
+}
+
+### Reset password
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+    "email":"testing@email.com",
+    "code":"968707",
+    "password":"testing2024"
+}
+
+
+### Delete authed User
+DELETE {{baseUrl}}/auth/me
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### Get all users (only admins can)
+GET {{baseUrl}}/users/all?limit=10&offset=4&sortBy=username&order=-1
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+### Search in users
+
+GET  {{baseUrl}}/users/search?username=helloyasser
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+
+### Get authed user sessions
+
+GET  {{baseUrl}}/auth/sessions
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}

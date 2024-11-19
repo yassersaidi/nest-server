@@ -1,18 +1,28 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import db_source from '@/config/database';
+import { Global, Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Pool } from 'pg';
+import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
+import * as db_schema from './schema';
 
+export const DrizzleAsyncProvider = 'DrizzleAsyncProvider';
+@Global()
 @Module({
-    imports:[
-        ConfigModule.forRoot({
-            load:[db_source]
-        }),
-        TypeOrmModule.forRootAsync({
-            imports:[ConfigModule],
-            useFactory: (configService: ConfigService) => configService.get("db_source"),
-            inject: [ConfigService]
-        })
-    ]
+  providers: [
+    {
+      provide: DrizzleAsyncProvider,
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const connectionString = configService.get<string>('DATABASE_URL');
+        const pool = new Pool({
+          connectionString,
+        });
+
+        return drizzle(pool, { schema: db_schema }) as NodePgDatabase<
+          typeof db_schema
+        >;
+      },
+    },
+  ],
+  exports: [DrizzleAsyncProvider],
 })
 export class DatabaseModule {}

@@ -1,19 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Session } from '../users/entities/session.entity';
-import { JwtService } from '@nestjs/jwt';
 import { UsersModule } from '../users/users.module';
-import { VerificationCode } from '../users/entities/verification.code.entity';
-import { Admin } from '../users/entities/admin.entity';
+import { SessionService } from './sessions/session.service';
+import { VerificationCodeService } from './verification-code/verification-code.service';
 
 @Module({
-  imports: [
-    UsersModule,
-    TypeOrmModule.forFeature([Session, VerificationCode, Admin]),
-  ],
+  imports: [UsersModule],
   controllers: [AuthController],
-  providers: [AuthService, JwtService],
+  providers: [AuthService, SessionService, VerificationCodeService],
 })
-export class AuthModule { }
+export class AuthModule {}
