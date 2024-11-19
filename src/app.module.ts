@@ -1,17 +1,17 @@
 import { Module } from '@nestjs/common';
-import { UsersModule } from './resources/users/users.module';
-import { AuthModule } from './resources/auth/auth.module';
-import { DatabaseModule } from './resources/database/database.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { AuthModule } from './resources/auth/auth.module';
+import { DatabaseModule } from './resources/database/database.module';
+import { UsersModule } from './resources/users/users.module';
+// import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+// import { APP_GUARD } from '@nestjs/core';
+import KeyvRedis from '@keyv/redis';
+import { CacheModule, CacheStore } from '@nestjs/cache-manager';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import Keyv from 'keyv';
 import { join } from 'path';
 import { CommonModule } from './resources/common/common.module';
-import { CacheModule, CacheStore } from '@nestjs/cache-manager';
-import Keyv from 'keyv';
-import KeyvRedis from '@keyv/redis';
 
 @Module({
   imports: [

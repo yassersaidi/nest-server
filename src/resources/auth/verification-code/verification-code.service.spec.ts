@@ -1,15 +1,15 @@
+import { EmailService } from '@/resources/common/emails/email.service';
+import { EmailServiceMock } from '@/resources/common/emails/mocks/email.service.mock';
+import { DefaultHttpException } from '@/resources/common/errors/error/custom-error.error';
+import { GeneratorService } from '@/resources/common/generators/generator.service';
+import { GeneratorServiceMock } from '@/resources/common/generators/mocks/generator.mock';
+import { SMSServiceMock } from '@/resources/common/sms/mocks/sms.service.mock';
+import { SMSService } from '@/resources/common/sms/sms.service';
+import { DrizzleAsyncProvider } from '@/resources/database/database.module';
+import { HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { vi } from 'vitest';
 import { VerificationCodeService } from './verification-code.service';
-import { EmailService } from '@/resources/common/emails/email.service';
-import { SMSService } from '@/resources/common/sms/sms.service';
-import { GeneratorService } from '@/resources/common/generators/generator.service';
-import { DefaultHttpException } from '@/resources/common/errors/error/custom-error.error';
-import { HttpStatus } from '@nestjs/common';
-import { DrizzleAsyncProvider } from '@/resources/database/database.module';
-import { EmailServiceMock } from '@/resources/common/emails/mocks/email.service.mock';
-import { SMSServiceMock } from '@/resources/common/sms/mocks/sms.service.mock';
-import { GeneratorServiceMock } from '@/resources/common/generators/mocks/generator.mock';
 
 describe('VerificationCodeService', () => {
   let service: VerificationCodeService;
@@ -92,7 +92,7 @@ describe('VerificationCodeService', () => {
         service.sendEmailVerificationCode(userId, email),
       ).rejects.toThrow(
         new DefaultHttpException(
-          'A verification code has already been sent.',
+          'A code has already been sent.',
           'Please check your email or phone.',
           'email Verification Service',
           HttpStatus.BAD_REQUEST,

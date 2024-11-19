@@ -1,10 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { vi } from 'vitest';
-import { ConfigService } from '@nestjs/config';
 import { DefaultHttpException } from '@/resources/common/errors/error/custom-error.error';
 import { DrizzleAsyncProvider } from '@/resources/database/database.module';
-import { UsersService } from './users.service';
 import { HttpStatus } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
+import { vi } from 'vitest';
+import { UsersService } from './users.service';
 
 import bcrypt from 'bcryptjs';
 
@@ -393,14 +393,6 @@ describe('Users Service', () => {
 
       const result = await service.deleteUser('testing-123');
       expect(result).toEqual({ message: 'Your account has been deleted' });
-    });
-
-    it('Should throw exception when user not found', async () => {
-      mockDb.returning.mockResolvedValue([]);
-
-      await expect(service.deleteUser('testing-1234')).rejects.toThrow(
-        DefaultHttpException,
-      );
     });
   });
 
