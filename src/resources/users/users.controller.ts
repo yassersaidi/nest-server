@@ -1,7 +1,10 @@
 import {
   Controller,
-  Get, Inject, Query, UseGuards,
-  UseInterceptors
+  Get,
+  Inject,
+  Query,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { IsAuthed } from '@/resources/common/guards/is.authed.guard';
@@ -16,34 +19,30 @@ import { GetUsersQueryDto } from './dto/get-users.dto';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 @UseGuards(IsAuthed, UserRolesGuard)
-@ApiBearerAuth("AuthGuard")
+@ApiBearerAuth('AuthGuard')
 @UseInterceptors(UserInterceptor)
 @Controller('users')
 export class UsersController {
-
   constructor(
     private readonly usersService: UsersService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) { }
+  ) {}
 
   @AccessRoles([UserRoles.ADMIN])
   @Get('/all')
   async getAllUsers(@Query() getUsersQuery: GetUsersQueryDto) {
-    const cachedUsers = await this.cacheManager.get("users")
+    const cachedUsers = await this.cacheManager.get('users');
     if (cachedUsers) {
-      return cachedUsers
+      return cachedUsers;
     }
-    const users = await this.usersService.getAll(getUsersQuery)
-    await this.cacheManager.set("users", users, 10000)
-    return users
+    const users = await this.usersService.getAll(getUsersQuery);
+    await this.cacheManager.set('users', users, 10000);
+    return users;
   }
-
 
   @UseInterceptors(UserInterceptor)
-  @Get("/search")
+  @Get('/search')
   searchInUsers(@Query() searchUsersQuery: SearchUsersQueryDto) {
-    return this.usersService.searchUsers(searchUsersQuery)
+    return this.usersService.searchUsers(searchUsersQuery);
   }
-
-
 }

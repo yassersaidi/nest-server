@@ -21,11 +21,11 @@ describe('SMSService', () => {
 
   it('SMS Service Should be defined', () => {
     expect(service).toBeDefined();
-  })
+  });
 
   it('Should call send method and return true', async () => {
     const sendData = { phoneNumber: '+21354545445', message: 'Hello' };
-    SMSServiceMock.send.mockResolvedValue(true)
+    SMSServiceMock.send.mockResolvedValue(true);
     const result = await service.send(sendData);
 
     expect(result).toBe(true);

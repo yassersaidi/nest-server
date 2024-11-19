@@ -17,17 +17,23 @@ import { GeneratorService } from './generators/generator.service';
     },
     {
       provide: JwtService,
-      useClass: JwtService
+      useClass: JwtService,
     },
     {
       provide: GeneratorService,
-      useClass: GeneratorService
-    }
+      useClass: GeneratorService,
+    },
   ],
-  exports: [PROVIDERS.USER_AGENT_PARSER, JwtService, SMSModule, EmailModule, GeneratorService],
+  exports: [
+    PROVIDERS.USER_AGENT_PARSER,
+    JwtService,
+    SMSModule,
+    EmailModule,
+    GeneratorService,
+  ],
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(RequestResponseTime).forRoutes('*')
+    consumer.apply(RequestResponseTime).forRoutes('*');
   }
 }

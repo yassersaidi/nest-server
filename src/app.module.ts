@@ -16,15 +16,15 @@ import KeyvRedis from '@keyv/redis';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true
+      isGlobal: true,
     }),
     // ThrottlerModule.forRoot([{
     //   ttl: 60000,
     //   limit: 100,
     // }]),
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + "/profile"),
-      serveRoot: '/uploads/profile/'
+      rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + '/profile'),
+      serveRoot: '/uploads/profile/',
     }),
     CommonModule,
     UsersModule,
@@ -34,15 +34,15 @@ import KeyvRedis from '@keyv/redis';
       isGlobal: true,
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => {
-        const redisUri = configService.get<string>("REDIS_URI")
+        const redisUri = configService.get<string>('REDIS_URI');
         const store = new Keyv({
           store: new KeyvRedis(redisUri),
-          ttl: 20000
-        })
+          ttl: 20000,
+        });
         return {
           store: store as unknown as CacheStore,
-        }
-      }
+        };
+      },
     }),
     JwtModule,
   ],
@@ -54,4 +54,4 @@ import KeyvRedis from '@keyv/redis';
   //   }
   // ]
 })
-export class AppModule { }
+export class AppModule {}

@@ -1,3 +1,3 @@
-import { UserSchemaType } from "@/resources/users/interfaces/users-search.interface";
+import { UserSchemaType } from '@/resources/users/interfaces/users-search.interface';
 
-export type LoginUserType = Partial<UserSchemaType>
+export type LoginUserType = Partial<UserSchemaType>;

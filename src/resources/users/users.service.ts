@@ -1,4 +1,4 @@
-import { ConflictException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ConfigService } from '@nestjs/config';
 import { SearchUsersQueryDto } from './dto/search-users.dto';
@@ -11,7 +11,7 @@ import { UserVerificationFields } from './interfaces/user.interface';
 import { GetUsersQueryDto } from './dto/get-users.dto';
 
 type UserType = typeof db_schema.User.$inferSelect;
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -19,12 +19,15 @@ export class UsersService {
 
   constructor(
     @Inject(DrizzleAsyncProvider) private db: NodePgDatabase<typeof db_schema>,
-    private readonly configService: ConfigService
-  ) { }
+    private readonly configService: ConfigService,
+  ) {}
 
   async create(createUserDto: CreateUserDto) {
     this.logger.log(`Creating user with: email = ${createUserDto.email}...`);
-    const hashedPassword = await bcrypt.hash(createUserDto.password, parseInt(this.configService.get('PASSWORD_SALT')));
+    const hashedPassword = await bcrypt.hash(
+      createUserDto.password,
+      parseInt(this.configService.get('PASSWORD_SALT')),
+    );
     const userValues: typeof db_schema.User.$inferInsert = {
       ...createUserDto,
       password: hashedPassword,
@@ -38,7 +41,7 @@ export class UsersService {
           id: db_schema.User.id,
           email: db_schema.User.email,
           phoneNumber: db_schema.User.phoneNumber,
-          username: db_schema.User.username
+          username: db_schema.User.username,
         });
 
       this.logger.log('User created successfully');
@@ -59,12 +62,17 @@ export class UsersService {
             `${value} already exists`,
             `Enter new ${field}`,
             'Register Service',
-            HttpStatus.CONFLICT
+            HttpStatus.CONFLICT,
           );
         }
       }
 
-      throw new DefaultHttpException(error.message, '', 'Register Service', HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new DefaultHttpException(
+        error.message,
+        '',
+        'Register Service',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -75,14 +83,15 @@ export class UsersService {
       const conditions = [];
       if (email) conditions.push(eq(db_schema.User.email, email));
       if (username) conditions.push(eq(db_schema.User.username, username));
-      if (phoneNumber) conditions.push(eq(db_schema.User.phoneNumber, phoneNumber));
+      if (phoneNumber)
+        conditions.push(eq(db_schema.User.phoneNumber, phoneNumber));
 
       if (conditions.length === 0) {
         throw new DefaultHttpException(
           'No search criteria provided',
           'Provide at least one search field (email, username, or phone number)',
           'Users Service',
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -95,21 +104,22 @@ export class UsersService {
       if (users.length === 0) {
         let notFoundMessage = 'User';
         if (email) notFoundMessage += ` with email: ${email} not found.`;
-        if (username) notFoundMessage += ` with username: ${username} not found.`;
-        if (phoneNumber) notFoundMessage += ` with phone number: ${phoneNumber} not found.`;
+        if (username)
+          notFoundMessage += ` with username: ${username} not found.`;
+        if (phoneNumber)
+          notFoundMessage += ` with phone number: ${phoneNumber} not found.`;
 
         this.logger.warn(notFoundMessage);
         throw new DefaultHttpException(
           notFoundMessage,
           'Check your information or create an account',
           'Users Service',
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
 
       this.logger.log('User found');
       return users[0];
-
     } catch (error) {
       this.logger.error('Error finding user:', error);
 
@@ -121,7 +131,7 @@ export class UsersService {
         'Failed to find user',
         'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -129,14 +139,18 @@ export class UsersService {
   async findById(id: string) {
     try {
       this.logger.log(`Searching for user with ID: ${id}`);
-      const users = await this.db.select().from(db_schema.User).where(eq(db_schema.User.id, id)).limit(1);
+      const users = await this.db
+        .select()
+        .from(db_schema.User)
+        .where(eq(db_schema.User.id, id))
+        .limit(1);
       if (users.length === 0) {
         this.logger.warn(`User with id: ${id} not found`);
         throw new DefaultHttpException(
           `User with id: ${id} not found`,
           'Check the id or create an account',
           'Users Service',
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -153,7 +167,7 @@ export class UsersService {
         'Failed to find user',
         'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -182,7 +196,7 @@ export class UsersService {
           `User with id: ${id} not found`,
           'Check the id or create an account',
           'Users Service',
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -199,20 +213,24 @@ export class UsersService {
         'Failed to find user',
         'An unexpected error occurred while searching for the user',
         'Users Service',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 
   async getAll(getUsersQuery: GetUsersQueryDto) {
-    const { limit, offset, order, sortBy } = getUsersQuery
-    this.logger.log(`Fetching users by: limit=${limit}, offset=${offset}, order=${order}, sortBy=${sortBy}`);
+    const { limit, offset, order, sortBy } = getUsersQuery;
+    this.logger.log(
+      `Fetching users by: limit=${limit}, offset=${offset}, order=${order}, sortBy=${sortBy}`,
+    );
     const users = await this.db
       .select()
       .from(db_schema.User)
-      .orderBy(order > 0 ? asc(db_schema.User[sortBy]) : desc(db_schema.User[sortBy]))
+      .orderBy(
+        order > 0 ? asc(db_schema.User[sortBy]) : desc(db_schema.User[sortBy]),
+      )
       .offset(offset)
-      .limit(limit)
+      .limit(limit);
     this.logger.log('Fetched all users');
     return users;
   }
@@ -222,7 +240,12 @@ export class UsersService {
     const users = await this.db
       .select()
       .from(db_schema.User)
-      .where(or(eq(db_schema.User.email, email), eq(db_schema.User.username, username)));
+      .where(
+        or(
+          eq(db_schema.User.email, email),
+          eq(db_schema.User.username, username),
+        ),
+      );
 
     this.logger.log('Search completed');
     return users;
@@ -230,7 +253,11 @@ export class UsersService {
 
   async updateUser(userId: string, updateData: Partial<UserType>) {
     this.logger.log(`Updating user with ID: ${userId}`);
-    const updatedUsers = await this.db.update(db_schema.User).set(updateData).where(eq(db_schema.User.id, userId)).returning();
+    const updatedUsers = await this.db
+      .update(db_schema.User)
+      .set(updateData)
+      .where(eq(db_schema.User.id, userId))
+      .returning();
 
     if (updatedUsers.length === 0) {
       this.logger.warn(`User with ID: ${userId} not found for update`);
@@ -238,7 +265,7 @@ export class UsersService {
         `User with id: ${userId} not found`,
         'Check the id or create an account',
         'Users Service',
-        HttpStatus.BAD_REQUEST
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -248,24 +275,26 @@ export class UsersService {
 
   async deleteUser(userId: string) {
     this.logger.log(`Deleting user with ID: ${userId}`);
-    await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId))
+    await this.db.delete(db_schema.User).where(eq(db_schema.User.id, userId));
     return { message: 'Your account has been deleted' };
   }
 
   async isNotAdmin(userId: string) {
     this.logger.log(`Checking if user ${userId} is not an admin`);
-    const admins = await this.db.select().from(db_schema.User).where(and(
-      eq(db_schema.User.id, userId),
-      eq(db_schema.User.role, "ADMIN")
-    ));
+    const admins = await this.db
+      .select()
+      .from(db_schema.User)
+      .where(
+        and(eq(db_schema.User.id, userId), eq(db_schema.User.role, 'ADMIN')),
+      );
 
     if (admins.length > 0) {
       this.logger.warn(`User ${userId} is already an admin`);
       throw new DefaultHttpException(
-        "This user is already an admin",
-        "No Solution.",
-        "Admin Service",
-        HttpStatus.BAD_REQUEST
+        'This user is already an admin',
+        'No Solution.',
+        'Admin Service',
+        HttpStatus.BAD_REQUEST,
       );
     }
 

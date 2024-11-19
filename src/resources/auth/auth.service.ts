@@ -9,7 +9,7 @@ import { VerificationCodeService } from './verification-code/verification-code.s
 import { LoginUserType } from './interfaces/login-user.interface';
 import { UserRoles } from '../common/enums/user-roles.enum';
 
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
@@ -19,39 +19,50 @@ export class AuthService {
     @Inject(PROVIDERS.USER_AGENT_PARSER) private readonly uap: UAParser,
     private readonly sessionService: SessionService,
     private readonly verificationCodeService: VerificationCodeService,
-  ) { }
+  ) {}
 
-  async login(user: LoginUserType, loginDto: loginDto, ip: string | string[], deviceInfo: string) {
+  async login(
+    user: LoginUserType,
+    loginDto: loginDto,
+    ip: string | string[],
+    deviceInfo: string,
+  ) {
     this.logger.log('Attempting to login user with email: ' + loginDto.email);
 
     const isValid = await bcrypt.compare(loginDto.password, user?.password);
 
     if (!isValid) {
-      this.logger.warn(`Invalid login attempt for user with email: ${loginDto.email}`);
+      this.logger.warn(
+        `Invalid login attempt for user with email: ${loginDto.email}`,
+      );
       throw new DefaultHttpException(
-        "Invalid credentials",
-        "Enter valid email or password",
-        "Login Service",
-        HttpStatus.BAD_REQUEST
+        'Invalid credentials',
+        'Enter valid email or password',
+        'Login Service',
+        HttpStatus.BAD_REQUEST,
       );
     }
 
     this.logger.log(`User ${user.id} logged in successfully.`);
 
-    const sessionId = await this.sessionService.createSession(user.id, ip.toString(), deviceInfo);
-    
-    const newAccessToken = this.sessionService.generateAccessToken({
-        userId: user.id,
-        role: user.role as UserRoles,
-        username: user.username,
-        sessionId
-    })
+    const sessionId = await this.sessionService.createSession(
+      user.id,
+      ip.toString(),
+      deviceInfo,
+    );
 
-    const newRefreshToken = this.sessionService.generateRefreshToken(sessionId)   
+    const newAccessToken = this.sessionService.generateAccessToken({
+      userId: user.id,
+      role: user.role as UserRoles,
+      username: user.username,
+      sessionId,
+    });
+
+    const newRefreshToken = this.sessionService.generateRefreshToken(sessionId);
     return {
-      accessToken:newAccessToken,
-      refreshToken:newRefreshToken,
-      userId: user.id
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      userId: user.id,
     };
   }
 
@@ -61,10 +72,10 @@ export class AuthService {
     if (!session) {
       this.logger.warn(`No session found for id: ${sessionId}`);
       throw new DefaultHttpException(
-        "Session not found or already logged out",
-        "Ensure you are logged in before attempting to log out.",
-        "Logout",
-        HttpStatus.UNAUTHORIZED
+        'Session not found or already logged out',
+        'Ensure you are logged in before attempting to log out.',
+        'Logout',
+        HttpStatus.UNAUTHORIZED,
       );
     }
 
@@ -74,8 +85,13 @@ export class AuthService {
   }
 
   async verifyEmail(userId: string, email: string) {
-    this.logger.log(`Sending email verification code to user ${userId} at email: ${email}`);
-    return this.verificationCodeService.sendEmailVerificationCode(userId, email);
+    this.logger.log(
+      `Sending email verification code to user ${userId} at email: ${email}`,
+    );
+    return this.verificationCodeService.sendEmailVerificationCode(
+      userId,
+      email,
+    );
   }
 
   async verifyEmailCode(userId: string, code: string) {
@@ -84,8 +100,13 @@ export class AuthService {
   }
 
   async verifyPhoneNumber(userId: string, phoneNumber: string) {
-    this.logger.log(`Sending phone verification code to user ${userId} at phone number: ${phoneNumber}`);
-    return this.verificationCodeService.sendPhoneVerificationCode(userId, phoneNumber);
+    this.logger.log(
+      `Sending phone verification code to user ${userId} at phone number: ${phoneNumber}`,
+    );
+    return this.verificationCodeService.sendPhoneVerificationCode(
+      userId,
+      phoneNumber,
+    );
   }
 
   async verifyPhoneNumberCode(userId: string, code: string) {
@@ -94,7 +115,9 @@ export class AuthService {
   }
 
   async forgotPassword(userId: string, email: string) {
-    this.logger.log(`Sending password reset code to user ${userId} at email: ${email}`);
+    this.logger.log(
+      `Sending password reset code to user ${userId} at email: ${email}`,
+    );
     return this.verificationCodeService.sendPasswordResetCode(userId, email);
   }
 
@@ -102,7 +125,10 @@ export class AuthService {
     this.logger.log(`Resetting password for user ${userId}`);
     await this.verificationCodeService.verifyPasswordResetCode(userId, code);
 
-    const hashedPassword = await bcrypt.hash(newPassword, parseInt(process.env.PASSWORD_SALT || '13'));
+    const hashedPassword = await bcrypt.hash(
+      newPassword,
+      parseInt(process.env.PASSWORD_SALT || '13'),
+    );
     return { hashedPassword };
   }
 
@@ -112,12 +138,12 @@ export class AuthService {
   }
 
   async getUserDeviceInfo(req: Request) {
-    const userAgent = this.uap.setUA(req.headers["user-agent"]).getResult();
+    const userAgent = this.uap.setUA(req.headers['user-agent']).getResult();
     const ipAddress = req.ip || req.headers['x-forwarded-for'];
     const deviceInfo = `${userAgent.browser.name}${userAgent.browser.version} - ${userAgent.device.model} - ${userAgent.os.name}`;
     return {
       deviceInfo,
-      ipAddress
+      ipAddress,
     };
   }
 

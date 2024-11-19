@@ -1,4 +1,4 @@
 export interface SMSType {
-    phoneNumber: string;
-    message: string;
+  phoneNumber: string;
+  message: string;
 }

@@ -12,220 +12,231 @@ import { SMSServiceMock } from '@/resources/common/sms/mocks/sms.service.mock';
 import { GeneratorServiceMock } from '@/resources/common/generators/mocks/generator.mock';
 
 describe('VerificationCodeService', () => {
-    let service: VerificationCodeService;
-    let dbQueryResult: any[] = [];
-    
-    const mockDb = {
-        select: vi.fn().mockReturnThis(),
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockImplementation(() => {
-            return dbQueryResult;
-        }),
-        insert: vi.fn().mockReturnThis(),
-        values: vi.fn().mockImplementation(() => Promise.resolve()),
-        delete: vi.fn().mockReturnThis(),
-    };
+  let service: VerificationCodeService;
+  let dbQueryResult: any[] = [];
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                VerificationCodeService,
-                { provide: DrizzleAsyncProvider, useValue: mockDb },
-                { provide: EmailService, useValue: EmailServiceMock },
-                { provide: SMSService, useValue: SMSServiceMock },
-                { provide: GeneratorService, useValue: GeneratorServiceMock },
-            ],
-        }).compile();
+  const mockDb = {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockImplementation(() => {
+      return dbQueryResult;
+    }),
+    insert: vi.fn().mockReturnThis(),
+    values: vi.fn().mockImplementation(() => Promise.resolve()),
+    delete: vi.fn().mockReturnThis(),
+  };
 
-        service = module.get<VerificationCodeService>(VerificationCodeService);
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        VerificationCodeService,
+        { provide: DrizzleAsyncProvider, useValue: mockDb },
+        { provide: EmailService, useValue: EmailServiceMock },
+        { provide: SMSService, useValue: SMSServiceMock },
+        { provide: GeneratorService, useValue: GeneratorServiceMock },
+      ],
+    }).compile();
+
+    service = module.get<VerificationCodeService>(VerificationCodeService);
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dbQueryResult = [];
+    GeneratorServiceMock.generateNumericCode.mockReturnValue('123456');
+  });
+
+  it('VerificationCode Service Should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('sendEmailVerificationCode', () => {
+    const email = 'test@example.com';
+    const userId = 'user123';
+
+    it('Should send email verification code successfully', async () => {
+      dbQueryResult = [];
+      EmailServiceMock.sendEmail.mockResolvedValueOnce(true);
+
+      const result = await service.sendEmailVerificationCode(userId, email);
+
+      expect(result.message).toBe('Verification code sent!');
+      expect(EmailServiceMock.sendEmail).toHaveBeenCalledWith({
+        email,
+        subject: 'Your verification code',
+        html: expect.stringContaining('123456'),
+      });
+      expect(mockDb.where).toHaveBeenCalled();
     });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
-        dbQueryResult = [];
-        GeneratorServiceMock.generateNumericCode.mockReturnValue('123456');
+    it('Should throw error if email sending fails', async () => {
+      dbQueryResult = [];
+      EmailServiceMock.sendEmail.mockResolvedValueOnce(false);
+
+      await expect(
+        service.sendEmailVerificationCode(userId, email),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'Unable to send verification code.',
+          'Please ensure your email address is correct and try again.',
+          'Email Verification Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
     });
 
+    it('Should throw error if code already exists', async () => {
+      dbQueryResult = [{ id: 1 }];
 
-    it('VerificationCode Service Should be defined', () => {
-        expect(service).toBeDefined();
-    })
+      await expect(
+        service.sendEmailVerificationCode(userId, email),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'A verification code has already been sent.',
+          'Please check your email or phone.',
+          'email Verification Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
+  });
 
-    describe('sendEmailVerificationCode', () => {
-        const email = 'test@example.com';
-        const userId = 'user123';
+  describe('sendPhoneVerificationCode', () => {
+    const phoneNumber = '+2135454545';
+    const userId = 'user123';
 
-        it('Should send email verification code successfully', async () => {
-            dbQueryResult = [];
-            EmailServiceMock.sendEmail.mockResolvedValueOnce(true);
+    it('Should send phone verification code successfully', async () => {
+      dbQueryResult = [];
+      SMSServiceMock.send.mockResolvedValueOnce(true);
 
-            const result = await service.sendEmailVerificationCode(userId, email);
+      const result = await service.sendPhoneVerificationCode(
+        userId,
+        phoneNumber,
+      );
 
-            expect(result.message).toBe('Verification code sent!');
-            expect(EmailServiceMock.sendEmail).toHaveBeenCalledWith({
-                email,
-                subject: 'Your verification code',
-                html: expect.stringContaining('123456')
-            });
-            expect(mockDb.where).toHaveBeenCalled();
-        });
-
-        it('Should throw error if email sending fails', async () => {
-            dbQueryResult = [];
-            EmailServiceMock.sendEmail.mockResolvedValueOnce(false);
-
-            await expect(service.sendEmailVerificationCode(userId, email)).rejects.toThrow(
-                new DefaultHttpException(
-                    'Unable to send verification code.',
-                    'Please ensure your email address is correct and try again.',
-                    'Email Verification Service',
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-        });
-
-        it('Should throw error if code already exists', async () => {
-            dbQueryResult = [{ id: 1 }];
-
-            await expect(service.sendEmailVerificationCode(userId, email)).rejects.toThrow(
-                new DefaultHttpException(
-                    'A verification code has already been sent.',
-                    'Please check your email or phone.',
-                    'email Verification Service',
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-        });
+      expect(result.message).toBe('Verification code sent!');
+      expect(SMSServiceMock.send).toHaveBeenCalledWith({
+        phoneNumber,
+        message: expect.stringContaining('123456'),
+      });
+      expect(mockDb.insert).toHaveBeenCalled();
     });
 
-    describe('sendPhoneVerificationCode', () => {
-        const phoneNumber = '+2135454545';
-        const userId = 'user123';
+    it('Should throw error if SMS sending fails', async () => {
+      dbQueryResult = [];
+      SMSServiceMock.send.mockResolvedValueOnce(false);
 
-        it('Should send phone verification code successfully', async () => {
-            dbQueryResult = [];
-            SMSServiceMock.send.mockResolvedValueOnce(true);
+      await expect(
+        service.sendPhoneVerificationCode(userId, phoneNumber),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'Unable to send the verification code.',
+          'Please check your phone number and try again.',
+          'Phone Verification Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
+  });
 
-            const result = await service.sendPhoneVerificationCode(userId, phoneNumber);
+  describe('verifyCode', () => {
+    const userId = 'user123';
+    const code = '123456';
 
-            expect(result.message).toBe('Verification code sent!');
-            expect(SMSServiceMock.send).toHaveBeenCalledWith({
-                phoneNumber,
-                message: expect.stringContaining('123456')
-            });
-            expect(mockDb.insert).toHaveBeenCalled();
-        });
+    it('Should verify email code successfully', async () => {
+      dbQueryResult = [{ id: 1 }];
 
-        it('Should throw error if SMS sending fails', async () => {
-            dbQueryResult = [];
-            SMSServiceMock.send.mockResolvedValueOnce(false);
+      await service.verifyEmailCode(userId, code);
 
-            await expect(service.sendPhoneVerificationCode(userId, phoneNumber)).rejects.toThrow(
-                new DefaultHttpException(
-                    'Unable to send the verification code.',
-                    'Please check your phone number and try again.',
-                    'Phone Verification Service',
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-        });
+      expect(mockDb.delete).toHaveBeenCalled();
     });
 
-    describe('verifyCode', () => {
-        const userId = 'user123';
-        const code = '123456';
+    it('Should verify phone code successfully', async () => {
+      dbQueryResult = [{ id: 1 }];
 
-        it('Should verify email code successfully', async () => {
-            dbQueryResult = [{ id: 1 }];
+      await service.verifyPhoneCode(userId, code);
 
-            await service.verifyEmailCode(userId, code);
-
-            expect(mockDb.delete).toHaveBeenCalled();
-        });
-
-        it('Should verify phone code successfully', async () => {
-            dbQueryResult = [{ id: 1 }];
-
-            await service.verifyPhoneCode(userId, code);
-
-            expect(mockDb.delete).toHaveBeenCalled();
-        });
-
-        it('Should throw error for invalid email code', async () => {
-            dbQueryResult = [];
-
-            await expect(service.verifyEmailCode(userId, code)).rejects.toThrow(
-                new DefaultHttpException(
-                    'Invalid or expired code.',
-                    'Please request a new email code.',
-                    'email Verification Service',
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-        });
+      expect(mockDb.delete).toHaveBeenCalled();
     });
 
-    describe('sendPasswordResetCode', () => {
-        const email = 'test@example.com';
-        const userId = 'user123';
-        const code = '123456';
+    it('Should throw error for invalid email code', async () => {
+      dbQueryResult = [];
 
-        it('Should send password reset code successfully', async () => {
-            dbQueryResult = [];
-            EmailServiceMock.sendEmail.mockResolvedValueOnce(true);
+      await expect(service.verifyEmailCode(userId, code)).rejects.toThrow(
+        new DefaultHttpException(
+          'Invalid or expired code.',
+          'Please request a new email code.',
+          'email Verification Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
+  });
 
-            const result = await service.sendPasswordResetCode(userId, email);
+  describe('sendPasswordResetCode', () => {
+    const email = 'test@example.com';
+    const userId = 'user123';
+    const code = '123456';
 
-            expect(result.message).toBe('Password reset code sent!');
-            expect(EmailServiceMock.sendEmail).toHaveBeenCalledWith({
-                email,
-                subject: 'Your password reset code',
-                html: expect.stringContaining('123456')
-            });
-            expect(mockDb.insert).toHaveBeenCalled();
-        });
+    it('Should send password reset code successfully', async () => {
+      dbQueryResult = [];
+      EmailServiceMock.sendEmail.mockResolvedValueOnce(true);
 
-        it('Should throw error if password reset code not sent', async () => {
-            EmailServiceMock.sendEmail.mockResolvedValueOnce(false);
+      const result = await service.sendPasswordResetCode(userId, email);
 
-            await expect(service.sendPasswordResetCode(userId, email)).rejects.toThrow(
-                new DefaultHttpException(
-                    "Unable to send reset code.",
-                    "Please check your email address and try again.",
-                    "Reset Password Service",
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-            
-        });
-
-        it('Should verify password reset code successfully', async () => {
-            dbQueryResult = [{ id: 1 }];
-
-            await service.verifyPasswordResetCode(userId, code);
-
-            expect(mockDb.delete).toHaveBeenCalled();
-        });
-
-        it('Should throw error for invalid password reset code', async () => {
-            dbQueryResult = [];
-
-            await expect(service.verifyPasswordResetCode(userId, code)).rejects.toThrow(
-                new DefaultHttpException(
-                    'Invalid or expired code.',
-                    'Please request a new password_reset code.',
-                    'password_reset Verification Service',
-                    HttpStatus.BAD_REQUEST
-                )
-            );
-        });
+      expect(result.message).toBe('Password reset code sent!');
+      expect(EmailServiceMock.sendEmail).toHaveBeenCalledWith({
+        email,
+        subject: 'Your password reset code',
+        html: expect.stringContaining('123456'),
+      });
+      expect(mockDb.insert).toHaveBeenCalled();
     });
 
-    describe('cleanup', () => {
-        it('Should cleanup expired codes', async () => {
-            await service.cleanupExpiredCodes();
+    it('Should throw error if password reset code not sent', async () => {
+      EmailServiceMock.sendEmail.mockResolvedValueOnce(false);
 
-            expect(mockDb.delete).toHaveBeenCalled();
-        });
+      await expect(
+        service.sendPasswordResetCode(userId, email),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'Unable to send reset code.',
+          'Please check your email address and try again.',
+          'Reset Password Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
     });
+
+    it('Should verify password reset code successfully', async () => {
+      dbQueryResult = [{ id: 1 }];
+
+      await service.verifyPasswordResetCode(userId, code);
+
+      expect(mockDb.delete).toHaveBeenCalled();
+    });
+
+    it('Should throw error for invalid password reset code', async () => {
+      dbQueryResult = [];
+
+      await expect(
+        service.verifyPasswordResetCode(userId, code),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'Invalid or expired code.',
+          'Please request a new password_reset code.',
+          'password_reset Verification Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
+  });
+
+  describe('cleanup', () => {
+    it('Should cleanup expired codes', async () => {
+      await service.cleanupExpiredCodes();
+
+      expect(mockDb.delete).toHaveBeenCalled();
+    });
+  });
 });
