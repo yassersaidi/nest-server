@@ -182,10 +182,8 @@ describe('Users Service', () => {
     });
 
     it('Should throw an exception when no email, username, phoneNumber provided', async () => {
-      await expect(service.findUser({})).rejects.toThrow(
-        DefaultHttpException,
-      );
-    })
+      await expect(service.findUser({})).rejects.toThrow(DefaultHttpException);
+    });
     it('Should throw exception when user not found by username', async () => {
       mockDb.select.mockRejectedValue(
         new DefaultHttpException(
@@ -193,7 +191,8 @@ describe('Users Service', () => {
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ))
+        ),
+      );
 
       await expect(
         service.findUser({ username: 'testing-111' }),
@@ -203,7 +202,8 @@ describe('Users Service', () => {
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ));
+        ),
+      );
     });
   });
 
@@ -236,17 +236,17 @@ describe('Users Service', () => {
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ))
+        ),
+      );
 
-      await expect(
-        service.findById('testing-111'),
-      ).rejects.toThrow(
+      await expect(service.findById('testing-111')).rejects.toThrow(
         new DefaultHttpException(
           'Failed to find user',
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ));
+        ),
+      );
     });
   });
 
@@ -283,17 +283,17 @@ describe('Users Service', () => {
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ))
+        ),
+      );
 
-      await expect(
-        service.getMe('testing-111'),
-      ).rejects.toThrow(
+      await expect(service.getMe('testing-111')).rejects.toThrow(
         new DefaultHttpException(
           'Failed to find user',
           'An unexpected error occurred while searching for the user',
           'Users Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
-        ));
+        ),
+      );
     });
   });
 

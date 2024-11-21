@@ -9,8 +9,8 @@ describe('SMSService', () => {
   let service: SMSService;
 
   const configServiceMock = {
-    get: vi.fn().mockReturnValue("+213505151515")
-  }
+    get: vi.fn().mockReturnValue('+213505151515'),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -22,8 +22,8 @@ describe('SMSService', () => {
         },
         {
           provide: ConfigService,
-          useValue: configServiceMock
-        }
+          useValue: configServiceMock,
+        },
       ],
     }).compile();
 
@@ -36,7 +36,7 @@ describe('SMSService', () => {
 
   it('Should call send method and return true', async () => {
     const sendData = { phoneNumber: '+21354545445', message: 'Hello' };
-    const response = { status: "sent" }
+    const response = { status: 'sent' };
     TwilioMock.messages.create.mockResolvedValue(response);
     const createSpy = vi.spyOn(TwilioMock.messages, 'create');
 
@@ -44,14 +44,14 @@ describe('SMSService', () => {
     expect(createSpy).toHaveBeenCalledWith({
       to: sendData.phoneNumber,
       from: configServiceMock.get('TWILIO_PHONE_NUMBER'),
-      body: sendData.message
-    })
+      body: sendData.message,
+    });
     expect(result).toBe(true);
   });
 
   it('Should return false on failure', async () => {
     const sendData = { phoneNumber: '+21354545445', message: 'Hello' };
-    const response = { status: "failed", errorCode: 404 }
+    const response = { status: 'failed', errorCode: 404 };
     TwilioMock.messages.create.mockResolvedValue(response);
     const createSpy = vi.spyOn(TwilioMock.messages, 'create');
 
@@ -59,8 +59,8 @@ describe('SMSService', () => {
     expect(createSpy).toHaveBeenCalledWith({
       to: sendData.phoneNumber,
       from: configServiceMock.get('TWILIO_PHONE_NUMBER'),
-      body: sendData.message
-    })
+      body: sendData.message,
+    });
     expect(result).toBe(false);
   });
   it('Should return false on failure', async () => {
@@ -72,8 +72,8 @@ describe('SMSService', () => {
     expect(createSpy).toHaveBeenCalledWith({
       to: sendData.phoneNumber,
       from: configServiceMock.get('TWILIO_PHONE_NUMBER'),
-      body: sendData.message
-    })
+      body: sendData.message,
+    });
     expect(result).toBe(false);
   });
 });

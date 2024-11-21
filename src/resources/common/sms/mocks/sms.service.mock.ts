@@ -11,6 +11,6 @@ export const SMSServiceMock: SMSServiceMockType = {
 
 export const TwilioMock = {
   messages: {
-    create: vi.fn()
-  }
-}
+    create: vi.fn(),
+  },
+};
