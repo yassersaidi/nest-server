@@ -1,7 +1,13 @@
 {
-    "files.autoSave": "onFocusChange",
-    "editor.codeActionsOnSave": {
-        "source.fixAll": "always",
-        "source.organizeImports": "always"
-    },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 100,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "always",
+    "source.addMissingImports.ts": "always",
+    "source.organizeImports": "always",
+    "source.removeUnusedImports": "always"
+  }
 }
