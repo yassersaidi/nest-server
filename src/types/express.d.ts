@@ -1,4 +1,4 @@
-import { AuthedUserReqType } from '@/resources/auth/interfaces/authed-user.interface';
+import { AuthedUserReqType } from '@/auth/interfaces/authed-user.interface';
 
 declare global {
   namespace Express {

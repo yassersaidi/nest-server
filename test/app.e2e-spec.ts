@@ -1,20 +1,20 @@
-import { TimeoutInterceptor } from '@/resources/common/interceptors/timeout.interceptor';
-import { AppModule } from '../src/app.module';
+import { loginDto } from '@/auth/dto/login.dto';
+import { TimeoutInterceptor } from '@/common/interceptors/timeout.interceptor';
+import { DrizzleAsyncProvider } from '@/database/database.module';
+import * as db_schema from '@/database/schema';
+import { CreateUserDto } from '@/users/dto/create-user.dto';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
 import cookieParser from 'cookie-parser';
-import { CreateUserDto } from '@/resources/users/dto/create-user.dto';
-import { loginDto } from '@/resources/auth/dto/login.dto';
-import { afterAll, expect } from 'vitest';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import * as db_schema from '@/resources/database/schema';
 import { and, eq, gt } from 'drizzle-orm';
-import { DrizzleAsyncProvider } from '@/resources/database/database.module';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import request from 'supertest';
+import { afterAll, expect } from 'vitest';
+import { AppModule } from '../src/app.module';
 
-import authResponseErrors from './api/auth/errors/index.json';
-import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import authResponseErrors from './api/auth/errors/index.json';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
