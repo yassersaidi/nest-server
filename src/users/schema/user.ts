@@ -1,15 +1,16 @@
+import { Session } from '@/auth/sessions/schema/session';
+import { VerificationCode } from '@/auth/verification-code/schema/verification.code';
+import { Friend } from '@/friends/schema/friends';
 import { relations } from 'drizzle-orm';
 import {
+  boolean,
+  index,
+  pgEnum,
   pgTable,
-  uuid,
   text,
   timestamp,
-  boolean,
-  pgEnum,
-  index,
+  uuid,
 } from 'drizzle-orm/pg-core';
-import { Session } from './session';
-import { VerificationCode } from './verification.code';
 
 export const rolesEnum = pgEnum('user_roles_enum', [
   'SUPER_ADMIN',
@@ -50,4 +51,14 @@ export const userSessions = relations(User, ({ many }) => ({
 
 export const userVerificationCodes = relations(User, ({ many }) => ({
   verification_codes: many(VerificationCode),
+}));
+
+export const userFriends = relations(User, ({ many }) => ({
+  sentFriendRequests: many(Friend, {
+    relationName: 'sender',
+  }),
+
+  receivedFriendRequests: many(Friend, {
+    relationName: 'receiver',
+  }),
 }));

@@ -5,10 +5,10 @@ POST {{baseUrl}}/auth/register HTTP/1.1
 Content-Type: application/json
     
 {
-        "email": "testing4@email.com",
-        "username": "test2027",
+        "email": "testing5@email.com",
+        "username": "test52027",
         "password": "testing2024@",
-        "phoneNumber": "+211434574444710"
+        "phoneNumber": "+2117844744710"
 }
 
 ### Login an Account
@@ -17,9 +17,42 @@ POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-    "email": "testing4@email.com",
+    "email": "testing5@email.com",
     "password": "testing2024@"
 }
+
+### Get friends
+
+GET {{baseUrl}}/friends?limit=10&offset=0&order=-1&status=ACCEPTED HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+### Sent friend request
+
+POST {{baseUrl}}/friends/ HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+{
+    "receiverId": "154075c6-c36b-4ff0-bc2f-56529070bf2a"
+}
+
+### Update friend request
+
+Patch {{baseUrl}}/friends/41f418a0-a813-4fbe-9682-d2bceef3feb3 HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
+{   
+    "status":"ACCEPTED"
+}
+
+### Delete friend request
+
+DELETE {{baseUrl}}/friends/41f418a0-a813-4fbe-9682-d2bceef3feb3 HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
+
 
 ### Logout user
 POST {{baseUrl}}/auth/logout
@@ -34,18 +67,17 @@ Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
 Cookie: refreshToken=
 
 
-
-
 ### Get the current authed user by accessToken
 GET {{baseUrl}}/auth/me
 Content-Type: application/json
 Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
 
+
 ### Testing timeout interceptor
 GET {{baseUrl}}/auth/
 
 
-### Send Email verfication code
+### Send Email verification code
 POST {{baseUrl}}/auth/verify-email
 Content-Type: application/json
 Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
@@ -54,7 +86,7 @@ Authorization: Bearer {{loginAuth.response.body.$.accessToken}}
     "email":"testing4@email.com"
 }
 
-### Validate Email verfication code
+### Validate Email verification code
 POST {{baseUrl}}/auth/verify-email-code
 Content-Type: application/json
 
@@ -63,7 +95,7 @@ Content-Type: application/json
     "code":"027641"
 }
 
-### Send Email verfication code
+### Send Email verification code
 POST {{baseUrl}}/auth/verify-phone-number
 Content-Type: application/json
 
@@ -71,7 +103,7 @@ Content-Type: application/json
     "phoneNumber":"+21354754545"
 }
 
-### Validate Email verfication code
+### Validate Email verification code
 POST {{baseUrl}}/auth/verify-phone-code
 Content-Type: application/json
 

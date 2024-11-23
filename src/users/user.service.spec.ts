@@ -25,6 +25,7 @@ describe('Users Service', () => {
     mockDb = {
       select: vi.fn().mockReturnThis(),
       from: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
@@ -35,7 +36,6 @@ describe('Users Service', () => {
       set: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       offset: vi.fn().mockReturnThis(),
-      execute: vi.fn().mockReturnThis(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -229,6 +229,7 @@ describe('Users Service', () => {
         DefaultHttpException,
       );
     });
+
     it('Should throw exception when user not found by id', async () => {
       mockDb.select.mockRejectedValue(
         new DefaultHttpException(
@@ -248,28 +249,42 @@ describe('Users Service', () => {
         ),
       );
     });
+
+    it('Should throw exception when user id is not in UUID format', async () => {
+      mockDb.limit.mockRejectedValue({ code: '22P02' });
+
+      await expect(service.findById('testing')).rejects.toThrow(
+        new DefaultHttpException(
+          'Invalid User ID',
+          'Provide a valid user id',
+          'Users Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
   });
 
   describe('getMe', () => {
     const mockUser = {
-      id: 'testing-123',
+      id: 'testing-1234',
       email: 'testing@mail.com',
       username: 'testing',
       phoneNumber: '+21355555555',
       profilePicture: 'pic.jpg',
       emailVerified: true,
       phoneNumberVerified: true,
+      sessions: null,
     };
 
     it('Should get current user details', async () => {
-      mockDb.execute.mockResolvedValue([mockUser]);
+      mockDb.where.mockResolvedValueOnce([mockUser]);
 
       const result = await service.getMe(mockUser.id);
       expect(result).toEqual(mockUser);
     });
 
     it('Should throw exception when user not found', async () => {
-      mockDb.execute.mockResolvedValue([]);
+      mockDb.where.mockResolvedValue();
 
       await expect(service.getMe('testing-1234')).rejects.toThrow(
         DefaultHttpException,
@@ -372,7 +387,7 @@ describe('Users Service', () => {
       expect(mockDb.where).toHaveBeenCalled();
     });
 
-    it('should find users by username', async () => {
+    it('Should find users by username', async () => {
       mockDb.where.mockResolvedValue(mockUsers.slice(1, 2));
 
       const result = await service.searchUsers({
@@ -386,7 +401,7 @@ describe('Users Service', () => {
       expect(mockDb.where).toHaveBeenCalled();
     });
 
-    it('should find multiple users matching criteria', async () => {
+    it('Should find multiple users matching criteria', async () => {
       mockDb.where.mockResolvedValue(mockUsers);
 
       const result = await service.searchUsers({
@@ -400,7 +415,7 @@ describe('Users Service', () => {
       expect(mockDb.where).toHaveBeenCalled();
     });
 
-    it('should return empty array when no users found', async () => {
+    it('Should return empty array when no users found', async () => {
       mockDb.where.mockResolvedValue([]);
 
       const result = await service.searchUsers({

@@ -1,7 +1,7 @@
 import { UserRoles } from '@/common/enums/user-roles.enum';
 
 export type AuthedUserReqType = {
-  userId: string;
+  id: string;
   role: UserRoles;
   username: string;
   sessionId: string;

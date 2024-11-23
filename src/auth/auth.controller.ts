@@ -111,12 +111,12 @@ export class AuthController {
   @ApiBearerAuth('AuthGuard')
   @Get('/me')
   async getMe(@AuthedUserReq() user: AuthedUserReqType) {
-    const cachedUserData = await this.cacheManager.get(user.userId);
+    const cachedUserData = await this.cacheManager.get(user.id);
     if (cachedUserData) {
       return cachedUserData;
     }
-    const dbUserData = await this.userService.getMe(user.userId);
-    await this.cacheManager.set(user.userId, dbUserData);
+    const dbUserData = await this.userService.getMe(user.id);
+    await this.cacheManager.set(user.id, dbUserData);
     return dbUserData;
   }
 
@@ -164,8 +164,8 @@ export class AuthController {
     @AuthedUserReq() user: AuthedUserReqType,
     @Res() res: Response,
   ) {
-    await this.userService.findById(user.userId);
-    const { message } = await this.userService.deleteUser(user.userId);
+    await this.userService.findById(user.id);
+    const { message } = await this.userService.deleteUser(user.id);
     res.clearCookie(
       'accessToken',
       this.generatorService.generateCookieOptions(),
@@ -345,7 +345,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Get('/sessions')
   async getSessions(@AuthedUserReq() user: AuthedUserReqType) {
-    const sessions = await this.authService.getSessions(user.userId);
+    const sessions = await this.authService.getSessions(user.id);
     return sessions;
   }
 

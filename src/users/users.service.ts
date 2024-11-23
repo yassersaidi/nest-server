@@ -158,7 +158,14 @@ export class UsersService {
       return users[0];
     } catch (error) {
       this.logger.error('Error finding user:', error);
-
+      if (error.code === '22P02') {
+        throw new DefaultHttpException(
+          'Invalid User ID',
+          'Provide a valid user id',
+          'Users Service',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       if (error instanceof DefaultHttpException) {
         throw error;
       }
@@ -175,7 +182,7 @@ export class UsersService {
   async getMe(id: string) {
     try {
       this.logger.log(`Fetching user details for ID: ${id}`);
-      const user = await this.db
+      const users = await this.db
         .select({
           id: db_schema.User.id,
           email: db_schema.User.email,
@@ -184,13 +191,13 @@ export class UsersService {
           profilePicture: db_schema.User.profilePicture,
           emailVerified: db_schema.User.isEmailVerified,
           phoneNumberVerified: db_schema.User.isPhoneNumberVerified,
+          sessions: db_schema.Session,
         })
         .from(db_schema.User)
+        .leftJoin(db_schema.Session, eq(db_schema.Session.userId, id))
         .where(eq(db_schema.User.id, id))
-        .limit(1)
-        .execute();
 
-      if (user.length === 0) {
+        if (users.length === 0) {
         this.logger.warn(`User with id: ${id} not found`);
         throw new DefaultHttpException(
           `User with id: ${id} not found`,
@@ -201,14 +208,13 @@ export class UsersService {
       }
 
       this.logger.log('User details fetched');
-      return user[0];
+      return users[0];
     } catch (error) {
       this.logger.error('Error finding user:', error);
 
       if (error instanceof DefaultHttpException) {
         throw error;
       }
-
       throw new DefaultHttpException(
         'Failed to find user',
         'An unexpected error occurred while searching for the user',

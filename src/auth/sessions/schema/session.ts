@@ -1,6 +1,6 @@
-import { pgTable, uuid, text, timestamp, index } from 'drizzle-orm/pg-core';
-import { User } from './user';
+import { User } from '@/users/schema/user';
 import { relations } from 'drizzle-orm';
+import { index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const Session = pgTable(
   'session',

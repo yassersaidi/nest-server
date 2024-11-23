@@ -52,7 +52,7 @@ export class AuthService {
     );
 
     const newAccessToken = this.sessionService.generateAccessToken({
-      userId: user.id,
+      id: user.id,
       role: user.role as UserRoles,
       username: user.username,
       sessionId,

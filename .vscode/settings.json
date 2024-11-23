@@ -9,5 +9,6 @@
     "source.addMissingImports.ts": "always",
     "source.organizeImports": "always",
     "source.removeUnusedImports": "always"
-  }
+  },
+  "cSpell.words": ["Succssefly"]
 }

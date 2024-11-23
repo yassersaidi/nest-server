@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 const configService = new ConfigService();
 
 export default defineConfig({
-  schema: './src/resources/database/schema.ts',
+  schema: './src/database/schema.ts',
   out: './drizzle/database/migrations',
   dialect: 'postgresql',
   dbCredentials: {

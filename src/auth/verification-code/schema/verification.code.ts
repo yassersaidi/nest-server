@@ -1,7 +1,13 @@
-import { pgTable, uuid, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
-import { User } from './user';
+import { User } from '@/users/schema/user';
 import { relations } from 'drizzle-orm';
-import { index } from 'drizzle-orm/pg-core';
+import {
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const VerificationCode = pgTable(
   'verification_code',

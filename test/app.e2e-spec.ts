@@ -870,7 +870,6 @@ describe('AppController (e2e)', () => {
           .set('Cookie', oldRefreshTokenCookie)
           .expect(HttpStatus.UNAUTHORIZED)
           .then(({ body }) => {
-            console.log(body);
             expect(body).toHaveProperty(
               'message',
               'Session not found or already logged out',
@@ -927,7 +926,7 @@ describe('AppController (e2e)', () => {
 
       it(`Should throw error when no sessionId in token payload`, async () => {
         const tokenPayload = {
-          userId: 'cdcdc',
+          id: 'cdcdc',
           username: 'testuser',
           role: 'USER',
         };
@@ -1002,7 +1001,7 @@ describe('AppController (e2e)', () => {
 
       it('Should return 500 INTERNAL_SERVER_ERROR when the userId is not a uuid format (Postgresql error)', async () => {
         const tokenPayload = {
-          userId: loggedInUserId.slice(0, 10),
+          id: loggedInUserId.slice(0, 10),
           username: 'testuser',
           role: 'USER',
           sessionId: 'd',
@@ -1016,9 +1015,9 @@ describe('AppController (e2e)', () => {
         return request(httpServer)
           .delete('/api/v1/auth/me')
           .set('Authorization', `Bearer ${invalidAccessToken}`)
-          .expect(HttpStatus.INTERNAL_SERVER_ERROR)
+          .expect(HttpStatus.BAD_REQUEST)
           .then(({ body }) => {
-            expect(body).toHaveProperty('message', `Failed to find user`);
+            expect(body).toHaveProperty('message', `Invalid User ID`);
           });
 
         // here I can adjust the security of the route by checking also the user session id if it's exist and it's valid

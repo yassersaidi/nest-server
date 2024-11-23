@@ -186,7 +186,7 @@ export class SessionService {
         );
 
         const newAccessToken = this.generateAccessToken({
-          userId: session.userId,
+          id: session.userId,
           role: session.role as UserRoles,
           username: session.username,
           sessionId: newSessionId,
