@@ -195,9 +195,9 @@ export class UsersService {
         })
         .from(db_schema.User)
         .leftJoin(db_schema.Session, eq(db_schema.Session.userId, id))
-        .where(eq(db_schema.User.id, id))
+        .where(eq(db_schema.User.id, id));
 
-        if (users.length === 0) {
+      if (users.length === 0) {
         this.logger.warn(`User with id: ${id} not found`);
         throw new DefaultHttpException(
           `User with id: ${id} not found`,

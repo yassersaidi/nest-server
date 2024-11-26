@@ -1,5 +1,10 @@
 import { Session } from '@/auth/sessions/schema/session';
 import { VerificationCode } from '@/auth/verification-code/schema/verification.code';
+import {
+  Conversation,
+  ConversationMember,
+} from '@/conversation/schema/conversation';
+import { timestamps } from '@/database/helpers/timestamp.type';
 import { Friend } from '@/friends/schema/friends';
 import { relations } from 'drizzle-orm';
 import {
@@ -8,7 +13,6 @@ import {
   pgEnum,
   pgTable,
   text,
-  timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -25,9 +29,7 @@ export const User = pgTable(
     email: text('email').unique().notNull(),
     phoneNumber: text('phone_number').unique().notNull(),
     password: text('password').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp(),
-    deletedAt: timestamp(),
+    ...timestamps,
     username: text('username').unique().notNull(),
     isEmailVerified: boolean('is_email_verified').default(false).notNull(),
     isPhoneNumberVerified: boolean('is_phone_number_verified')
@@ -61,4 +63,9 @@ export const userFriends = relations(User, ({ many }) => ({
   receivedFriendRequests: many(Friend, {
     relationName: 'receiver',
   }),
+}));
+
+export const userConversationRelations = relations(User, ({ many }) => ({
+  conversations: many(Conversation),
+  conversationMemberships: many(ConversationMember),
 }));

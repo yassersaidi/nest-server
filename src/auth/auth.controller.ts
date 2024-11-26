@@ -26,7 +26,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { diskStorage } from 'multer';
@@ -43,6 +43,7 @@ import { VerifyPhoneNumberDto } from './dto/verify-phone-number.dto';
 import { RefreshTokenGuard } from './guards/refresh-token.guard';
 import { AuthedUserReqType } from './interfaces/authed-user.interface';
 
+@ApiTags('Authentication')
 @UseFilters(AuthFilter)
 @Controller('auth')
 export class AuthController {

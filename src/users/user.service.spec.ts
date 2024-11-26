@@ -284,7 +284,7 @@ describe('Users Service', () => {
     });
 
     it('Should throw exception when user not found', async () => {
-      mockDb.where.mockResolvedValue();
+      mockDb.where.mockResolvedValue([]);
 
       await expect(service.getMe('testing-1234')).rejects.toThrow(
         DefaultHttpException,

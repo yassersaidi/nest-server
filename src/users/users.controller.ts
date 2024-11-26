@@ -9,7 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Cache } from 'cache-manager';
 import { AccessRoles } from '../common/decorators/user-roles.decorator';
 import { UserRoles } from '../common/enums/user-roles.enum';
@@ -18,8 +18,9 @@ import { SearchUsersQueryDto } from './dto/search-users.dto';
 import { UserInterceptor } from './interceptors/users.interceptor';
 import { UsersService } from './users.service';
 
-@UseGuards(IsAuthed, UserRolesGuard)
+@ApiTags('Users')
 @ApiBearerAuth('AuthGuard')
+@UseGuards(IsAuthed, UserRolesGuard)
 @UseInterceptors(UserInterceptor)
 @Controller('users')
 export class UsersController {
@@ -40,7 +41,6 @@ export class UsersController {
     return users;
   }
 
-  @UseInterceptors(UserInterceptor)
   @Get('/search')
   searchInUsers(@Query() searchUsersQuery: SearchUsersQueryDto) {
     return this.usersService.searchUsers(searchUsersQuery);

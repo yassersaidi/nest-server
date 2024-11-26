@@ -12,7 +12,7 @@ import {
   UserResponse,
   UserSchemaType,
   UserSearchType,
-} from '../interfaces/users-search.interface';
+} from '../interfaces/user.interface';
 
 @Injectable()
 export class UserInterceptor implements NestInterceptor {

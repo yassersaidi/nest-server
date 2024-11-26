@@ -12,6 +12,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import Keyv from 'keyv';
 import { join } from 'path';
 import { CommonModule } from './common/common.module';
+import { ConversationModule } from './conversation/conversation.module';
 import { FriendsModule } from './friends/friends.module';
 
 @Module({
@@ -47,6 +48,7 @@ import { FriendsModule } from './friends/friends.module';
     }),
     JwtModule,
     FriendsModule,
+    ConversationModule,
   ],
   // TODO: Enable it after testing
   // providers: [

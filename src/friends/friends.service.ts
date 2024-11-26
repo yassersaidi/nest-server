@@ -236,7 +236,6 @@ export class FriendsService {
 
       const updatedData: Partial<typeof db_schema.Friend.$inferSelect> = {
         status: updateFriendRequestStatusDto.status,
-        updatedAt: new Date(),
       };
       const [updatedRequest] = await this.db
         .update(db_schema.Friend)

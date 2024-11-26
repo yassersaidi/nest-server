@@ -284,7 +284,7 @@ describe('Session Service', () => {
   describe('Token generation', () => {
     const sessionId = 'test-session-id';
     const payload = {
-      userId: 'test-user',
+      id: 'test-user',
       role: UserRoles.USER,
       username: 'testuser',
       sessionId: 'test-session-id',

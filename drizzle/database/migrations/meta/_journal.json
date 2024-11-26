@@ -29,6 +29,20 @@
       "when": 1732311700748,
       "tag": "0003_add_friend_table",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1732645636948,
+      "tag": "0004_add_conversation_and_all_related_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1732646227072,
+      "tag": "0005_updated_timestamp_in_user_table",
+      "breakpoints": true
     }
   ]
 }

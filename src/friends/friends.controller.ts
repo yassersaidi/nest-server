@@ -14,14 +14,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CreateFriendDto } from './dto/create-friend.dto';
 import { UpdateFriendRequestStatusDto } from './dto/update-friend-request-status.dto';
 import { FriendsService } from './friends.service';
 import { GetFriendsQueryDto } from './dto/get-friends.dto';
 
-@UseGuards(IsAuthed, UserRolesGuard)
+@ApiTags('Friends')
 @ApiBearerAuth('AuthGuard')
+@UseGuards(IsAuthed, UserRolesGuard)
 @Controller('friends')
 export class FriendsController {
   constructor(private readonly friendsService: FriendsService) {}
