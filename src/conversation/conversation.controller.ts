@@ -17,11 +17,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { PaginationDto } from '../common/dtos/pagination.dto';
 import { ConversationService } from './conversation.service';
 import { AddMemberDto } from './dto/add-members.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { DeleteMemberDto } from './dto/delete-member.dto';
-import { PaginationDto } from './dto/pagination.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 
@@ -130,6 +130,19 @@ export class ConversationController {
       user.id,
       conversationId,
       updateMemberDto,
+    );
+  }
+
+  @Get(':id/messages')
+  async getConversationMessages(
+    @AuthedUserReq() user: AuthedUserReqType,
+    @Param('id', ParseUUIDPipe) conversationId: string,
+    @Query() queryPagination: PaginationDto,
+  ) {
+    return this.conversationService.getMessagesByConversation(
+      user.id,
+      conversationId,
+      queryPagination,
     );
   }
 }

@@ -14,9 +14,9 @@ import {
   sql,
 } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { PaginationDto } from '../common/dtos/pagination.dto';
 import { AddMemberDto } from './dto/add-members.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
-import { PaginationDto } from './dto/pagination.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import {
@@ -706,6 +706,108 @@ export class ConversationService {
         'Unable to update member role in conversation',
         'Please try again later',
         'Conversation Service',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async isMember(userId: string, conversationId: string): Promise<boolean> {
+    try {
+      this.logger.log(
+        `Checking membership for user: ${userId} in conversation: ${conversationId}`,
+      );
+
+      const membership = await this.db.query.ConversationMember.findFirst({
+        where: (member) =>
+          and(
+            eq(member.userId, userId),
+            eq(member.conversationId, conversationId),
+            eq(member.isActive, true),
+            isNull(member.deletedAt),
+          ),
+        columns: {
+          id: true,
+        },
+      });
+
+      const isMemberResult = !!membership;
+
+      this.logger.log(
+        `Membership check result: ${isMemberResult ? 'Member' : 'Not a member'}`,
+      );
+
+      return isMemberResult;
+    } catch (error) {
+      this.logger.error('Error checking conversation membership:', error);
+
+      if (error.code === '22P02') {
+        throw new DefaultHttpException(
+          'Invalid conversation or user ID',
+          'Provide valid IDs for conversation and user',
+          'Conversation Service',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      throw new DefaultHttpException(
+        'Failed to check conversation membership',
+        'An unexpected error occurred while checking membership',
+        'Conversation Service',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async getMessagesByConversation(
+    userId: string,
+    conversationId: string,
+    paginationDto: PaginationDto,
+  ) {
+    const { limit, offset } = paginationDto;
+    try {
+      const isMember = await this.isMember(userId, conversationId);
+      if (!isMember) {
+        throw new DefaultHttpException(
+          `Conversation with id: ${conversationId} not found`,
+          'Check the id or create new conversation',
+          'Conversation Service',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      const messages = await this.db.query.Message.findMany({
+        where: (message) =>
+          and(
+            eq(message.conversationId, conversationId),
+            isNull(message.deletedAt),
+          ),
+        limit,
+        offset,
+        orderBy: desc(db_schema.Message.createdAt),
+        with: {
+          sender: {
+            columns: {
+              id: true,
+              username: true,
+              profilePicture: true,
+            },
+          },
+        },
+      });
+
+      return messages;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching messages for conversation ${conversationId}:`,
+        error.stack,
+      );
+      if (error instanceof DefaultHttpException) {
+        throw error;
+      }
+
+      throw new DefaultHttpException(
+        'Unable to fetch messages for this conversation',
+        'Please try again later',
+        'Message Service',
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

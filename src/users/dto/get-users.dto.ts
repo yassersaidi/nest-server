@@ -1,16 +1,7 @@
-import { IsIn, IsInt, IsNotEmpty, Min } from 'class-validator';
+import { PaginationDto } from '@/common/dtos/pagination.dto';
+import { IsIn, IsNotEmpty } from 'class-validator';
 
-export class GetUsersQueryDto {
-  @IsNotEmpty()
-  @IsInt()
-  @Min(0)
-  limit: number;
-
-  @IsNotEmpty()
-  @IsInt()
-  @Min(0)
-  offset: number;
-
+export class GetUsersQueryDto extends PaginationDto {
   @IsNotEmpty()
   @IsIn(['username', 'createdAt'])
   sortBy: string;

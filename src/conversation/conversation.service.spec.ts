@@ -1,3 +1,4 @@
+import { PaginationDto } from '@/common/dtos/pagination.dto';
 import { DefaultHttpException } from '@/common/errors/error/custom-error.error';
 import { DrizzleAsyncProvider } from '@/database/database.module';
 import * as db_schema from '@/database/schema';
@@ -31,6 +32,13 @@ const mockDb = {
   query: {
     Conversation: {
       findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    Message: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
+    ConversationMember: {
       findFirst: vi.fn(),
     },
   },
@@ -969,6 +977,126 @@ describe('ConversationService', () => {
           'Unable to update member role in conversation',
           'Please try again later',
           'Conversation Service',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        ),
+      );
+    });
+  });
+
+  describe('isMember', () => {
+    const userId = 'valid-user-id';
+    const conversationId = 'valid-conversation-id';
+
+    it('Should return true if the user is a member of the conversation', async () => {
+      const mockMembership = { id: 'membership-id' };
+      mockDb.query.ConversationMember.findFirst.mockResolvedValueOnce(
+        mockMembership,
+      );
+
+      const result = await service.isMember(userId, conversationId);
+
+      const whereClause =
+        mockDb.query.ConversationMember.findFirst.mock.calls[0][0].where;
+      whereClause({ userId, conversationId, isActive: true, deletedAt: null });
+
+      expect(result).toBe(true);
+      expect(mockDb.query.ConversationMember.findFirst).toHaveBeenCalledWith({
+        where: expect.any(Function),
+        columns: { id: true },
+      });
+    });
+
+    it('Should return false if the user is not a member of the conversation', async () => {
+      mockDb.query.ConversationMember.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.isMember(userId, conversationId);
+
+      expect(result).toBe(false);
+    });
+
+    it('Should throw an error if there is an invalid user or conversation ID', async () => {
+      const dbError = { code: '22P02' };
+      mockDb.query.ConversationMember.findFirst.mockRejectedValueOnce(dbError);
+
+      await expect(service.isMember(userId, conversationId)).rejects.toThrow(
+        new DefaultHttpException(
+          'Invalid conversation or user ID',
+          'Provide valid IDs for conversation and user',
+          'Conversation Service',
+          HttpStatus.BAD_REQUEST,
+        ),
+      );
+    });
+
+    it('Should handle unexpected errors gracefully', async () => {
+      const dbError = new Error('Unexpected error');
+      mockDb.query.ConversationMember.findFirst.mockRejectedValueOnce(dbError);
+
+      await expect(service.isMember(userId, conversationId)).rejects.toThrow(
+        new DefaultHttpException(
+          'Failed to check conversation membership',
+          'An unexpected error occurred while checking membership',
+          'Conversation Service',
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        ),
+      );
+    });
+  });
+
+  describe('getMessagesByConversation', () => {
+    const conversationId = 'valid-conversation-id';
+    const validUserId = 'user-id';
+    const paginationDto: PaginationDto = { limit: 10, offset: 0 };
+
+    it('Should return messages for the specified conversation', async () => {
+      const mockMessages = [
+        { id: 'msg1', sender: { id: 'user1', username: 'user1' } },
+        { id: 'msg2', sender: { id: 'user2', username: 'user2' } },
+      ];
+      service.isMember = vi.fn().mockResolvedValue(true);
+      mockDb.query.Message.findMany.mockResolvedValueOnce(mockMessages);
+
+      const result = await service.getMessagesByConversation(
+        validUserId,
+        conversationId,
+        paginationDto,
+      );
+
+      const whereClause = mockDb.query.Message.findMany.mock.calls[0][0].where;
+      whereClause({ conversationId, deletedAt: null });
+
+      expect(result).toEqual(mockMessages);
+      expect(mockDb.query.Message.findMany).toHaveBeenCalled();
+    });
+
+    it('Should not return messages id user is not member of the conversation', async () => {
+      service.isMember = vi.fn().mockResolvedValue(false);
+
+      await expect(
+        service.getMessagesByConversation('', conversationId, paginationDto),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          `Conversation with id: ${conversationId} not found`,
+          'Check the id or create new conversation',
+          'Conversation Service',
+          HttpStatus.NOT_FOUND,
+        ),
+      );
+    });
+
+    it('Should handle error when fetching messages', async () => {
+      service.isMember = vi.fn().mockResolvedValue(true);
+
+      const dbError = new Error('Unexpected error');
+      mockDb.query.Message.findMany.mockRejectedValueOnce(dbError);
+
+      await expect(
+        service.getMessagesByConversation('', conversationId, paginationDto),
+      ).rejects.toThrow(
+        new DefaultHttpException(
+          'Unable to fetch messages for this conversation',
+          'Please try again later',
+          'Message Service',
           HttpStatus.INTERNAL_SERVER_ERROR,
         ),
       );

@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Chat | Nest Server</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.8/axios.min.js"></script>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+
+      .spinner {
+        border: 4px solid transparent;
+        border-top: 4px solid #ffffff;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-br from-green-500 to-teal-600 min-h-screen flex items-center justify-center p-4"
+  >
+    <div
+      class="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col overflow-hidden"
+    >
+      <header
+        id="conversation"
+        class="bg-gradient-to-r from-green-500 to-teal-600 p-6 flex justify-center items-center flex-col"
+      ></header>
+      <main class="flex flex-col flex-grow">
+        <div
+          id="messages"
+          class="flex-grow overflow-y-auto p-6 space-y-4"
+        ></div>
+      </main>
+
+      <footer class="bg-gray-50 p-4 border-t border-gray-200">
+        <form id="message-form" class="flex space-x-2">
+          <input
+            id="message"
+            name="message"
+            class="flex-grow px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            placeholder="Type your message..."
+            required
+          />
+          <button
+            type="submit"
+            class="bg-gradient-to-r from-green-500 to-teal-600 text-white py-2 px-4 rounded-lg hover:from-green-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 transition font-medium"
+          >
+            Send
+          </button>
+        </form>
+      </footer>
+      <div id="connection-status" class=""></div>
+    </div>
+
+    <script>
+      const conversation = document.getElementById('conversation');
+
+      const baseUrl = 'http://localhost:3000/';
+      const myId = localStorage.getItem('userId');
+      const conversationId = localStorage.getItem('conversationId');
+      const accessToken = localStorage.getItem('accessToken');
+
+      if (!accessToken) {
+        window.location.href = '../client/auth/login.html';
+      }
+
+      const api = axios.create({
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      async function fetchConversationDetails() {
+        try {
+          const response = await api.get(
+            `${baseUrl}api/v1/conversations/${conversationId}`,
+          );
+          const conversationData = response.data;
+          const members = conversationData.members.map(
+            (member) =>
+              `<div class="flex items-center space-x-2 bg-teal-300 rounded-full p-1">
+                <img
+                  src="/static/${member.user.profilePicture}"
+                  alt="${member.user.username}'s profile"
+                  class="w-8 h-8 rounded-full"
+                />
+                <span class="text-sm font-medium text-gray-800">${member.user.username}</span>
+              </div>`,
+          );
+
+          conversation.innerHTML = `
+            <h2 class="text-3xl font-semibold text-white">${conversationData.title}</h2>
+            <div class="flex space-x-4 mt-2">
+              ${members.join('')}
+            </div>
+          `;
+        } catch (error) {
+          if (error.status == 404) {
+            window.location.href = '/static/client/index.html';
+          }
+          console.error('Error fetching conversation details:', error);
+        }
+      }
+
+      const fetchMessages = async (limit = 10, offset = 0) => {
+        try {
+          const response = await api.get(
+            `${baseUrl}api/v1/conversations/${conversationId}/messages`,
+            { params: { limit, offset } },
+          );
+          return response.data;
+        } catch (error) {
+          console.log(error);
+          if (error.status == 404) {
+            window.location.href = '/static/client/index.html';
+          }
+        }
+      };
+
+      async function loadInitMessages() {
+        const messages = await fetchMessages();
+        messages.reverse().forEach((message) => addMessageToChat(message));
+      }
+
+      const socket = io(`${baseUrl}ws/messages`, {
+        extraHeaders: { authorization: `Bearer ${accessToken}` },
+        query: { conversationId },
+      });
+
+      const messageForm = document.getElementById('message-form');
+      const messageInput = document.getElementById('message');
+      const messagesDiv = document.getElementById('messages');
+      const connectionStatus = document.getElementById('connection-status');
+
+      socket.on('connect', () => {
+        updateConnectionStatus('Connected', 'bg-green-100 text-green-500');
+        socket.emit('joinConversation', conversationId);
+        fetchConversationDetails();
+        loadInitMessages();
+      });
+
+      socket.on('disconnect', () => {
+        updateConnectionStatus('Disconnected', 'bg-red-100 text-red-500');
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        updateConnectionStatus(`Error: ${error.message}`, 'text-red-600');
+      });
+
+      socket.on('newMessage', (message) => {
+        addMessageToChat(message);
+      });
+      socket.on('messageUpdated', (updatedMessage) => {
+        console.log('Message updated:', updatedMessage);
+        updateMessageInChat(updatedMessage);
+      });
+
+      socket.on('messageRemoved', (messageId) => {
+        console.log('Message removed:', messageId);
+        document.getElementById(`message-${messageId}`).remove();
+      });
+      socket.on('userJoined', (username) => {
+        addSystemMessage(`${username} joined the chat`);
+      });
+
+      socket.on('userLeft', (username) => {
+        addSystemMessage(`${username} left the chat`);
+      });
+
+      messageForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (messageInput.value.trim()) {
+          sendMessage(messageInput.value.trim());
+          messageInput.value = '';
+        }
+      });
+
+      function sendMessage(content) {
+        socket.emit('createMessage', { conversationId, content });
+      }
+      function updateMessage(messageId, content) {
+        socket.emit('updateMessage', {
+          id: messageId,
+          content: content,
+        });
+      }
+
+      function deleteMessage(messageId) {
+        socket.emit('removeMessage', messageId);
+        document.getElementById(`message-${messageId}`).remove();
+      }
+
+      function addMessageToChat(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.id = `message-${message.id}`;
+        messageDiv.classList.add(
+          'flex',
+          message.sender.id === myId ? 'justify-start' : 'justify-end',
+        );
+        messageDiv.innerHTML = `
+          <div class="relative flex flex-col p-4 w-80 rounded-lg shadow-md ${
+            message.sender.id === myId ? 'bg-green-100' : 'bg-blue-100'
+          }">
+            <p class="text-sm text-gray-800">
+              <span class="font-semibold text-teal-600">${message.sender.username}:</span>
+              <span id="${`message-${message.id}-content`}">${message.content}</span>
+            </p>
+            ${
+              message.sender.id === myId
+                ? `<div class="flex space-x-2 mt-2 absolute right-0 top-[-20px] shadow-lg space-x-4 rounded p-1 bg-green-100">
+                    <button onclick="deleteMessage('${message.id}')" class="text-red-500"><i class="fas fa-trash"></i></button>
+                    <button onclick="editMessage('${message.id}')" class="text-blue-500"><i class="fas fa-edit"></i></button>
+                   </div>`
+                : ''
+            }
+            <p class="text-xs text-gray-500">${new Date(message.createdAt).toLocaleTimeString()}</p>
+          </div>
+        `;
+        messagesDiv.appendChild(messageDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      function editMessage(messageId) {
+        const contentSpan = document.getElementById(
+          `message-${messageId}-content`,
+        );
+        const currentContent = contentSpan.textContent;
+        var new_message = prompt('Update message');
+        if (new_message) {
+          updateMessage(messageId, new_message);
+        }
+      }
+
+      function updateMessageInChat(updatedMessage) {
+        const messageElement = document.getElementById(
+          `message-${updatedMessage.id}-content`,
+        );
+        if (messageElement) {
+          messageElement.textContent = updatedMessage.content;
+        }
+      }
+
+      function addSystemMessage(content) {
+        const systemMessageDiv = document.createElement('div');
+        systemMessageDiv.classList.add(
+          'text-center',
+          'text-gray-500',
+          'italic',
+        );
+        systemMessageDiv.textContent = content;
+        messagesDiv.appendChild(systemMessageDiv);
+      }
+
+      function updateConnectionStatus(message, className) {
+        connectionStatus.textContent = message;
+        connectionStatus.className =
+          'p-1 text-sm font-semibold text-center ' + className;
+      }
+    </script>
+  </body>
+</html>

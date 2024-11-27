@@ -10,10 +10,11 @@ import KeyvRedis from '@keyv/redis';
 import { CacheModule, CacheStore } from '@nestjs/cache-manager';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import Keyv from 'keyv';
-import { join } from 'path';
+import { resolve } from 'path';
 import { CommonModule } from './common/common.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { FriendsModule } from './friends/friends.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
@@ -24,10 +25,18 @@ import { FriendsModule } from './friends/friends.module';
     //   ttl: 60000,
     //   limit: 100,
     // }]),
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', process.env.UPLOADS_DIR + '/profile'),
-      serveRoot: '/uploads/profile/',
-    }),
+    ServeStaticModule.forRoot(
+      (() => {
+        const publicDir = resolve('./static/');
+        const servePath = '/static';
+
+        return {
+          rootPath: publicDir,
+          serveRoot: servePath,
+          exclude: ['/api*'],
+        };
+      })(),
+    ),
     CommonModule,
     UsersModule,
     AuthModule,
@@ -49,6 +58,7 @@ import { FriendsModule } from './friends/friends.module';
     JwtModule,
     FriendsModule,
     ConversationModule,
+    MessagesModule,
   ],
   // TODO: Enable it after testing
   // providers: [
