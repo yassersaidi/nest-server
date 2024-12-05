@@ -1,7 +1,7 @@
--- CREATE TYPE "public"."conversation_status" AS ENUM('ACTIVE', 'ARCHIVED', 'DELETED');--> statement-breakpoint
--- CREATE TYPE "public"."conversation_type" AS ENUM('DIRECT', 'GROUP');--> statement-breakpoint
--- CREATE TYPE "public"."member_role" AS ENUM('OWNER', 'ADMIN', 'MEMBER');--> statement-breakpoint
--- CREATE TYPE "public"."message_status" AS ENUM('SENT', 'DELIVERED', 'READ', 'FAILED');--> statement-breakpoint
+CREATE TYPE "public"."conversation_status" AS ENUM('ACTIVE', 'ARCHIVED', 'DELETED');--> statement-breakpoint
+CREATE TYPE "public"."conversation_type" AS ENUM('DIRECT', 'GROUP');--> statement-breakpoint
+CREATE TYPE "public"."member_role" AS ENUM('OWNER', 'ADMIN', 'MEMBER');--> statement-breakpoint
+CREATE TYPE "public"."message_status" AS ENUM('SENT', 'DELIVERED', 'READ', 'FAILED');--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "conversation" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"title" text,
